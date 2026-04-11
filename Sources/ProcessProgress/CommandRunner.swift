@@ -12,9 +12,9 @@ public struct CommandOutput: Sendable {
     }
 }
 
-/// Callback for each line of output. Parameters: (line text, offset seconds, is stderr)
+/// Callback for each line of output. Parameters: (line text, line record, is stderr)
 /// The callback is responsible for writing the line to the terminal (if desired).
-public typealias LineCallback = @Sendable (String, Double, Bool) -> Void
+public typealias LineCallback = @Sendable (String, LineRecord, Bool) -> Void
 
 public struct CommandRunner: Sendable {
     public init() {}
@@ -53,7 +53,7 @@ public struct CommandRunner: Sendable {
 
                 if let cb = onLineCopy {
                     // Callback handles output (clear bar → write line → redraw bar)
-                    cb(line, offset, isStderr)
+                    cb(line, record, isStderr)
                 } else {
                     // No callback — write directly
                     if isStderr {

@@ -1,22 +1,40 @@
 import Foundation
 
-/// Calculates expected total duration and current progress from history.
+/// A current line matched to a reference line on the baseline timeline.
+public struct ReferenceLineMatch: Sendable, Equatable {
+    /// Index of the matched line in the reference run.
+    public let index: Int
+
+    /// Where that reference line should appear on the weighted baseline timeline.
+    public let expectedOffset: Double
+
+    public init(index: Int, expectedOffset: Double) {
+        self.index = index
+        self.expectedOffset = expectedOffset
+    }
+}
+
+/// Calculates the baseline expected duration and reference offsets from history.
 public struct EstimateCalculator: Sendable {
     public let expectedTotal: Double
     public let hasHistory: Bool
     private let matcher: LineMatcher
 
     public init(history: CommandHistory?) {
-        guard let history, !history.runs.isEmpty else {
+        self.init(runs: history?.runs ?? [])
+    }
+
+    public init(runs: [Run]) {
+        guard !runs.isEmpty else {
             self.expectedTotal = 0
             self.hasHistory = false
-            self.matcher = LineMatcher(history: CommandHistory(command: "", runs: []))
+            self.matcher = LineMatcher(runs: [])
             return
         }
 
         self.hasHistory = true
-        self.matcher = LineMatcher(history: history)
-        self.expectedTotal = Self.weightedMeanDuration(runs: history.runs)
+        self.matcher = LineMatcher(runs: runs)
+        self.expectedTotal = Self.weightedMeanDuration(runs: runs)
     }
 
     /// Smooth time-based progress (0.0–1.0) from elapsed vs expected total.
@@ -35,8 +53,13 @@ public struct EstimateCalculator: Sendable {
         matcher.match(text: text)
     }
 
-    func expectedOffset(forLineMatching text: String) -> Double? {
-        guard let index = matcher.match(text: text),
+    /// Match a pre-hashed line record against history.
+    public func matchLine(_ line: LineRecord) -> Int? {
+        matcher.match(line: line)
+    }
+
+    func referenceMatch(for line: LineRecord) -> ReferenceLineMatch? {
+        guard let index = matcher.match(line: line),
               matcher.referenceLines.indices.contains(index),
               expectedTotal > 0 else {
             return nil
@@ -44,11 +67,17 @@ public struct EstimateCalculator: Sendable {
 
         let line = matcher.referenceLines[index]
         guard matcher.referenceTotalDuration > 0 else {
-            return min(expectedTotal, max(0, line.offsetSeconds))
+            return ReferenceLineMatch(
+                index: index,
+                expectedOffset: min(expectedTotal, max(0, line.offsetSeconds))
+            )
         }
 
         let referenceProgress = min(1.0, max(0, line.offsetSeconds / matcher.referenceTotalDuration))
-        return referenceProgress * expectedTotal
+        return ReferenceLineMatch(
+            index: index,
+            expectedOffset: referenceProgress * expectedTotal
+        )
     }
 
     // MARK: - Exponential Weighted Mean
