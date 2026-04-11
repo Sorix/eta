@@ -4,6 +4,8 @@ import Foundation
 public struct LineMatcher: Sendable {
     /// Historical lines from the best reference run, in order.
     public let referenceLines: [LineRecord]
+    /// Duration of the run that provided referenceLines.
+    public let referenceTotalDuration: Double
 
     /// Exact text hash → index in referenceLines (first occurrence)
     private let exactIndex: [String: Int]
@@ -14,6 +16,7 @@ public struct LineMatcher: Sendable {
         let refRun = history.runs.last
         let lines = refRun?.lines ?? []
         self.referenceLines = lines
+        self.referenceTotalDuration = refRun?.totalDuration ?? 0
 
         var exact: [String: Int] = [:]
         var normalized: [String: Int] = [:]
