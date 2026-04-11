@@ -24,7 +24,8 @@ public struct CommandRunner: Sendable {
     /// Returns collected lines with timestamps plus the exit code.
     public func run(command: String, onLine: LineCallback? = nil) throws -> CommandOutput {
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        let shellPath = ProcessInfo.processInfo.environment["SHELL"].flatMap { $0.isEmpty ? nil : $0 } ?? "/bin/sh"
+        process.executableURL = URL(fileURLWithPath: shellPath)
         process.arguments = ["-c", command]
 
         let stdoutPipe = Pipe()
