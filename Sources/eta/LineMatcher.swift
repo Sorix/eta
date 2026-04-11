@@ -5,10 +5,10 @@ struct LineMatcher: Sendable {
     /// Historical lines from the best reference run, in order.
     let referenceLines: [LineRecord]
 
-    /// Exact text → index in referenceLines (first occurrence)
-    private let exactIndex: [String: Int]
-    /// Normalized text → index in referenceLines (first occurrence)
-    private let normalizedIndex: [String: Int]
+    /// Exact text hash → index in referenceLines (first occurrence)
+    private let exactIndex: [UInt64: Int]
+    /// Normalized text hash → index in referenceLines (first occurrence)
+    private let normalizedIndex: [UInt64: Int]
 
     init(history: CommandHistory) {
         // Use the most recent complete run as reference, fall back to most recent.
@@ -16,15 +16,15 @@ struct LineMatcher: Sendable {
         let lines = refRun?.lines ?? []
         self.referenceLines = lines
 
-        var exact: [String: Int] = [:]
-        var normalized: [String: Int] = [:]
+        var exact: [UInt64: Int] = [:]
+        var normalized: [UInt64: Int] = [:]
         for (i, line) in lines.enumerated() {
             // Keep first occurrence — earlier lines are better progress anchors.
-            if exact[line.text] == nil {
-                exact[line.text] = i
+            if exact[line.textHash] == nil {
+                exact[line.textHash] = i
             }
-            if normalized[line.normalizedText] == nil {
-                normalized[line.normalizedText] = i
+            if normalized[line.normalizedHash] == nil {
+                normalized[line.normalizedHash] = i
             }
         }
         self.exactIndex = exact
@@ -33,8 +33,9 @@ struct LineMatcher: Sendable {
 
     /// Match a line against the reference. Returns the index in referenceLines, or nil.
     func match(text: String) -> Int? {
-        if let i = exactIndex[text] { return i }
-        let norm = CommandRunner.normalize(text)
-        return normalizedIndex[norm]
+        let textHash = FNV1a.hash(text)
+        if let i = exactIndex[textHash] { return i }
+        let normHash = FNV1a.hash(CommandRunner.normalize(text))
+        return normalizedIndex[normHash]
     }
 }

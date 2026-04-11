@@ -37,8 +37,8 @@ struct CommandRunner: Sendable {
                 guard !line.isEmpty else { continue }
                 let offset = Date().timeIntervalSince(startTime)
                 let record = LineRecord(
-                    text: line,
-                    normalizedText: CommandRunner.normalize(line),
+                    textHash: FNV1a.hash(line),
+                    normalizedHash: FNV1a.hash(CommandRunner.normalize(line)),
                     offsetSeconds: offset
                 )
                 collectedLines.withLock { $0.append(record) }
