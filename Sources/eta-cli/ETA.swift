@@ -64,23 +64,17 @@ struct ETA: ParsableCommand {
         let calculator = EstimateCalculator(history: history)
         let renderer = ProgressRenderer(color: color)
         let maxRuns = runs ?? 10
-        let renderProgress = !quiet && renderer.isEnabled
+        let hasHistory = calculator.hasHistory
+        let renderProgress = !quiet && renderer.isEnabled && hasHistory
 
         let startTime = Date()
         let runCount = history?.runs.count ?? 0
-        let isLearning = !calculator.hasHistory
 
         if renderProgress {
-            if isLearning {
-                renderer.forceUpdate(progress: 0, elapsed: 0, eta: 0,
-                                     runCount: 0, isLearning: true)
-            } else {
-                renderer.forceUpdate(progress: calculator.progress(elapsed: 0),
-                                     elapsed: 0,
-                                     eta: calculator.eta(elapsed: 0),
-                                     runCount: runCount,
-                                     isLearning: false)
-            }
+            renderer.forceUpdate(progress: calculator.progress(elapsed: 0),
+                                 elapsed: 0,
+                                 eta: calculator.eta(elapsed: 0),
+                                 runCount: runCount)
         }
 
         // Background timer: redraws bar at 5 fps.
@@ -89,15 +83,10 @@ struct ETA: ParsableCommand {
             t.schedule(deadline: .now() + 0.2, repeating: 0.2)
             t.setEventHandler { [renderer, calculator, startTime] in
                 let elapsed = Date().timeIntervalSince(startTime)
-                if isLearning {
-                    renderer.update(progress: 0, elapsed: elapsed, eta: 0,
-                                    runCount: 0, isLearning: true)
-                } else {
-                    let progress = calculator.progress(elapsed: elapsed)
-                    let eta = calculator.eta(elapsed: elapsed)
-                    renderer.update(progress: progress, elapsed: elapsed, eta: eta,
-                                    runCount: runCount, isLearning: false)
-                }
+                let progress = calculator.progress(elapsed: elapsed)
+                let eta = calculator.eta(elapsed: elapsed)
+                renderer.update(progress: progress, elapsed: elapsed, eta: eta,
+                                runCount: runCount)
             }
             t.resume()
             return t
@@ -118,19 +107,12 @@ struct ETA: ParsableCommand {
             }
 
             // Atomic: clear bar → write line → redraw bar (race-free with timer)
-            if isLearning {
-                renderer.writeLineAndRedraw(
-                    line: line, isStderr: isStderr,
-                    progress: 0, elapsed: elapsed, eta: 0,
-                    runCount: 0, isLearning: true)
-            } else {
-                let progress = calculator.progress(elapsed: elapsed)
-                let eta = calculator.eta(elapsed: elapsed)
-                renderer.writeLineAndRedraw(
-                    line: line, isStderr: isStderr,
-                    progress: progress, elapsed: elapsed, eta: eta,
-                    runCount: runCount, isLearning: false)
-            }
+            let progress = calculator.progress(elapsed: elapsed)
+            let eta = calculator.eta(elapsed: elapsed)
+            renderer.writeLineAndRedraw(
+                line: line, isStderr: isStderr,
+                progress: progress, elapsed: elapsed, eta: eta,
+                runCount: runCount)
         }
 
         // Stop timer and finish
@@ -138,8 +120,7 @@ struct ETA: ParsableCommand {
         if renderProgress {
             renderer.finish(
                 elapsed: output.totalDuration,
-                expected: calculator.expectedTotal,
-                hasHistory: calculator.hasHistory
+                expected: calculator.expectedTotal
             )
         }
 
