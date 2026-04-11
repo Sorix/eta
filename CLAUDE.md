@@ -18,17 +18,31 @@ Always pipe `swift build` output through `xcbeautify` for readable build output.
 ```
 Sources/eta/
 ├── ETA.swift               # @main, ArgumentParser command, all CLI flags
-├── Models.swift            # CommandHistory, Run, LineRecord (Codable)
-├── HistoryStore.swift      # JSON load/save to ~/.eta/history/<sha256>.json
+├── Models.swift            # CommandHistory, Run, LineRecord, FNV/MD5 hashing
+├── HistoryStore.swift      # JSON load/save, pruning, line downsampling
 ├── CommandRunner.swift     # Process wrapper, line timestamping, normalization
-├── LineMatcher.swift       # Exact text → normalized fallback matching
-├── ETACalculator.swift     # Exponential weighted mean ETA, progress calc
-└── ProgressRenderer.swift  # ANSI progress bar on stderr, TTY detection
+├── LineMatcher.swift       # Exact hash → normalized hash fallback matching
+├── ETACalculator.swift     # Exponential weighted mean ETA, time-based progress
+└── ProgressRenderer.swift  # ANSI progress bar on stderr, TTY detection, BarColor
+```
+
+## CLI Flags
+
+```
+eta <command>              Run a command with progress tracking
+  --name <name>            Custom alias for the command fingerprint
+  --color <color>          Bar color: green, yellow, red, blue, magenta, cyan, white
+  --quiet                  No progress bar, pure pass-through
+  --runs <runs>            History depth (default: 10)
+  --list                   List all learned commands
+  --stats <command>        Per-line timing breakdown
+  --clear <command>        Clear history for a command
+  --clear-all              Clear all history
 ```
 
 ## Requirements
 
-- macOS 13+
+- macOS 13+ / Linux (Swift toolchain)
 - Swift 6.0+
 - [xcbeautify](https://github.com/cpisciotta/xcbeautify) — `brew install xcbeautify`
 - sourcekit-lsp (ships with Xcode) — used for Swift LSP diagnostics
@@ -40,12 +54,16 @@ Sources/eta/
 ## Key Design Decisions
 
 - Progress bar writes to **stderr** — stdout stays clean for piping
-- Line matching: exact hash first, normalized fallback (digits stripped, whitespace collapsed)
+- Line matching: exact MD5 hash first, normalized fallback (digits stripped, whitespace collapsed)
+- Lines stored as MD5 hashes (not raw text) for privacy — `Insecure.MD5` is fine here (one-way, collisions harmless)
 - ETA: exponential weighted mean (α=0.3), recent runs weighted higher
+- Progress bar: smooth time-based (`elapsed / expectedTotal`), updated every 100ms via background timer
+- Atomic clear→write→redraw under lock prevents timer/output races
 - History: JSON files keyed by SHA256 of command string
   - macOS: `~/Library/Caches/eta/`
   - Linux: `$XDG_CACHE_HOME/eta/` or `~/.cache/eta/`
-- Non-zero exit: saved with `complete: false`, down-weighted in ETA calculation
+- Failed runs (non-zero exit) are not stored
+- Lines downsampled to 5000 max (evenly spaced) on save
 - Swift 6 strict concurrency throughout
 
 ## Git Conventions
