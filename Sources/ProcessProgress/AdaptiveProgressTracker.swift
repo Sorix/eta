@@ -45,9 +45,16 @@ public struct ProgressEstimate: Sendable, Equatable {
 /// `virtualElapsed = elapsed + timelineOffset`. Progress jumps to 50%, ETA becomes
 /// 10s, and the adjusted expected total becomes 13s.
 ///
-/// Only forward-moving matches are applied. Duplicate or older output lines are
-/// ignored so they cannot drag the bar backwards. The progress value also keeps a
-/// monotonic floor at the furthest matched milestone.
+/// Late milestones work the same way in the other direction. If that same 10s
+/// historical line arrives after 30s, the tracker stores a `timelineOffset` of
+/// -20s. Progress moves back to the known 50% milestone, ETA returns to 10s, and
+/// the adjusted expected total becomes 40s.
+///
+/// Matches are only accepted when they move forward through the reference output.
+/// Duplicate or older historical lines are ignored because they are usually repeats
+/// or out-of-order output. That ordering guard does not make visual progress
+/// monotonic: a late but newer milestone is allowed to move the bar backwards when
+/// it reveals that the previous time-based estimate was too optimistic.
 public final class AdaptiveProgressTracker: @unchecked Sendable {
     private let calculator: EstimateCalculator
     private let lock = NSLock()
@@ -57,11 +64,8 @@ public final class AdaptiveProgressTracker: @unchecked Sendable {
     /// Positive means the command is ahead of history, negative means it is behind.
     private var timelineOffset: Double = 0
 
-    /// The furthest matched milestone as normalized progress.
-    private var progressFloor: Double = 0
-
     /// The furthest matched milestone as seconds on the baseline timeline.
-    private var lastMatchedExpectedOffset: Double = 0
+    private var lastMatchedExpectedOffset = -Double.infinity
 
     public init(calculator: EstimateCalculator) {
         self.calculator = calculator
@@ -87,11 +91,7 @@ public final class AdaptiveProgressTracker: @unchecked Sendable {
         if let expectedOffset = calculator.expectedOffset(forLineMatching: text),
            expectedOffset > lastMatchedExpectedOffset {
             lastMatchedExpectedOffset = expectedOffset
-            progressFloor = max(progressFloor, expectedOffset / calculator.expectedTotal)
-
-            if expectedOffset > 0 {
-                timelineOffset = expectedOffset - elapsed
-            }
+            timelineOffset = expectedOffset - elapsed
         }
 
         return makeSnapshot(elapsed: elapsed)
@@ -103,7 +103,7 @@ public final class AdaptiveProgressTracker: @unchecked Sendable {
         }
 
         let virtualElapsed = max(0, elapsed + timelineOffset)
-        let progress = min(1.0, max(progressFloor, virtualElapsed / calculator.expectedTotal))
+        let progress = min(1.0, virtualElapsed / calculator.expectedTotal)
         let eta = calculator.expectedTotal - virtualElapsed
         let adjustedExpectedTotal = max(0, calculator.expectedTotal - timelineOffset)
 
