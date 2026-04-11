@@ -106,6 +106,16 @@ final class ProgressRenderer: @unchecked Sendable {
         draw(progress: progress, eta: eta)
     }
 
+    /// Clear the progress bar without printing a summary. Used for signal cleanup.
+    func cleanup() {
+        lock.lock()
+        defer { lock.unlock() }
+
+        guard terminal != nil, barVisible else { return }
+        writeTerminal("\u{1B}[2K\r")
+        barVisible = false
+    }
+
     /// Show completion summary and clear the bar.
     func finish(elapsed: Double, expected: Double) {
         lock.lock()

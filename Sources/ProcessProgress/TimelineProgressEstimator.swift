@@ -75,10 +75,6 @@ public final class TimelineProgressEstimator: @unchecked Sendable {
         self.calculator = EstimateCalculator(runs: archiveRuns)
     }
 
-    public var hasArchive: Bool {
-        hasHistory
-    }
-
     public var hasHistory: Bool {
         calculator.hasHistory
     }

@@ -74,30 +74,31 @@ public struct CommandRunner: Sendable {
             }
         }
 
-        stdoutPipe.fileHandleForReading.readabilityHandler = { handle in
-            let data = handle.availableData
-            guard !data.isEmpty else { return }
-            handleData(data, false)
+        let drainGroup = DispatchGroup()
+
+        drainGroup.enter()
+        DispatchQueue.global().async {
+            defer { drainGroup.leave() }
+            while true {
+                let data = stdoutPipe.fileHandleForReading.availableData
+                guard !data.isEmpty else { break }
+                handleData(data, false)
+            }
         }
 
-        stderrPipe.fileHandleForReading.readabilityHandler = { handle in
-            let data = handle.availableData
-            guard !data.isEmpty else { return }
-            handleData(data, true)
+        drainGroup.enter()
+        DispatchQueue.global().async {
+            defer { drainGroup.leave() }
+            while true {
+                let data = stderrPipe.fileHandleForReading.availableData
+                guard !data.isEmpty else { break }
+                handleData(data, true)
+            }
         }
 
         try process.run()
         process.waitUntilExit()
-
-        // Drain remaining data
-        stdoutPipe.fileHandleForReading.readabilityHandler = nil
-        stderrPipe.fileHandleForReading.readabilityHandler = nil
-
-        let remainingStdout = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-        if !remainingStdout.isEmpty { handleData(remainingStdout, false) }
-
-        let remainingStderr = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-        if !remainingStderr.isEmpty { handleData(remainingStderr, true) }
+        drainGroup.wait()
 
         let finalStdoutRecords = stdoutLineBuffer.withLock { $0.flushFinalLine(startTime: startTime) }
         let finalStderrRecords = stderrLineBuffer.withLock { $0.flushFinalLine(startTime: startTime) }
@@ -190,10 +191,13 @@ private struct StreamLineBuffer: Sendable {
 
     private static func makeRecord(from lineData: Data, startTime: Date) -> LineRecord? {
         guard !lineData.isEmpty,
-              let line = String(data: lineData, encoding: .utf8),
-              !line.isEmpty else {
+              let raw = String(data: lineData, encoding: .utf8),
+              !raw.isEmpty else {
             return nil
         }
+
+        let line = raw.hasSuffix("\r") ? String(raw.dropLast()) : raw
+        guard !line.isEmpty else { return nil }
 
         let offset = Date().timeIntervalSince(startTime)
         return LineRecord(
