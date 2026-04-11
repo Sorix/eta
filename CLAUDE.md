@@ -46,6 +46,11 @@ Sources/eta/
 - Non-zero exit: saved with `complete: false`, down-weighted in ETA calculation
 - Swift 6 strict concurrency throughout
 
+## Git Conventions
+
+- Commit at each logical step (one concern per commit)
+- One-line commit messages — short and descriptive
+
 ## Maintaining This File
 
 Keep CLAUDE.md up to date when making important structural changes: new source files, new dependencies, new CLI flags, changed build steps, or altered design decisions. Don't update for minor refactors or bug fixes.
