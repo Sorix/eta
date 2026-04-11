@@ -70,10 +70,10 @@ struct ETA: ParsableCommand {
         let runCount = history?.runs.count ?? 0
         let isLearning = !calculator.hasHistory
 
-        // Background timer: redraws bar every 100ms so progress fills smoothly
+        // Background timer: redraws bar once per second.
         let timer: DispatchSourceTimer? = renderProgress ? {
             let t = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .userInteractive))
-            t.schedule(deadline: .now() + 0.1, repeating: 0.1)
+            t.schedule(deadline: .now() + 1.0, repeating: 1.0)
             t.setEventHandler { [renderer, calculator, startTime] in
                 let elapsed = Date().timeIntervalSince(startTime)
                 if isLearning {
@@ -104,16 +104,16 @@ struct ETA: ParsableCommand {
                 return
             }
 
-            // Atomic: clear bar → write line → redraw bar (race-free with timer)
+            // Atomic: clear bar → write line → refresh bar when due (race-free with timer)
             if isLearning {
-                renderer.writeLineAndRedraw(
+                renderer.writeLineAndRefresh(
                     line: line, isStderr: isStderr,
                     progress: 0, elapsed: elapsed, eta: 0,
                     runCount: 0, isLearning: true)
             } else {
                 let progress = calculator.progress(elapsed: elapsed)
                 let eta = calculator.eta(elapsed: elapsed)
-                renderer.writeLineAndRedraw(
+                renderer.writeLineAndRefresh(
                     line: line, isStderr: isStderr,
                     progress: progress, elapsed: elapsed, eta: eta,
                     runCount: runCount, isLearning: false)

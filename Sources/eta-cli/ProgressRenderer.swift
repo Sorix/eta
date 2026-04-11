@@ -29,7 +29,7 @@ final class ProgressRenderer: @unchecked Sendable {
     private let terminalFD: Int32?
     private let color: BarColor
     private var lastDrawTime: TimeInterval = 0
-    private let minDrawInterval: TimeInterval = 1.0 / 15.0  // ~15 fps
+    private let minDrawInterval: TimeInterval = 1.0
     private var barVisible = false
 
     init(color: BarColor = .green) {
@@ -79,10 +79,10 @@ final class ProgressRenderer: @unchecked Sendable {
         barVisible = false
     }
 
-    /// Atomically: clear bar → write line → redraw bar. Prevents timer races.
-    func writeLineAndRedraw(line: String, isStderr: Bool,
-                            progress: Double, elapsed: Double, eta: Double,
-                            runCount: Int, isLearning: Bool) {
+    /// Atomically: clear bar → write line → refresh bar when due. Prevents timer races.
+    func writeLineAndRefresh(line: String, isStderr: Bool,
+                             progress: Double, elapsed: Double, eta: Double,
+                             runCount: Int, isLearning: Bool) {
         lock.lock()
         defer { lock.unlock() }
 
@@ -99,9 +99,11 @@ final class ProgressRenderer: @unchecked Sendable {
             FileHandle.standardOutput.write(Data((line + "\n").utf8))
         }
 
-        // Redraw bar
+        // Redraw bar when due. Chatty commands should not force high-frequency refreshes.
         guard terminal != nil else { return }
-        lastDrawTime = ProcessInfo.processInfo.systemUptime
+        let now = ProcessInfo.processInfo.systemUptime
+        guard now - lastDrawTime >= minDrawInterval else { return }
+        lastDrawTime = now
         draw(progress: progress, elapsed: elapsed, eta: eta,
              runCount: runCount, isLearning: isLearning)
     }
@@ -173,14 +175,14 @@ final class ProgressRenderer: @unchecked Sendable {
     }
 
     private func formatTime(_ seconds: Double) -> String {
-        let absSeconds = abs(seconds)
-        if absSeconds < 60 {
-            return String(format: "%.1fs", seconds)
+        let totalSeconds = Int(abs(seconds).rounded())
+        let sign = seconds < 0 && totalSeconds > 0 ? "-" : ""
+        if totalSeconds < 60 {
+            return "\(sign)\(totalSeconds)s"
         } else {
-            let m = Int(absSeconds) / 60
-            let s = absSeconds - Double(m * 60)
-            let sign = seconds < 0 ? "-" : ""
-            return String(format: "%s%dm%04.1fs", sign, m, s)
+            let minutes = totalSeconds / 60
+            let remainingSeconds = totalSeconds % 60
+            return String(format: "%@%dm%02ds", sign, minutes, remainingSeconds)
         }
     }
 
