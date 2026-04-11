@@ -1,21 +1,28 @@
 import Foundation
 
-struct CommandOutput: Sendable {
-    let lines: [LineRecord]
-    let totalDuration: Double
-    let exitCode: Int32
+public struct CommandOutput: Sendable {
+    public let lines: [LineRecord]
+    public let totalDuration: Double
+    public let exitCode: Int32
+
+    public init(lines: [LineRecord], totalDuration: Double, exitCode: Int32) {
+        self.lines = lines
+        self.totalDuration = totalDuration
+        self.exitCode = exitCode
+    }
 }
 
 /// Callback for each line of output. Parameters: (line text, offset seconds, is stderr)
 /// The callback is responsible for writing the line to the terminal (if desired).
-typealias LineCallback = @Sendable (String, Double, Bool) -> Void
+public typealias LineCallback = @Sendable (String, Double, Bool) -> Void
 
-struct CommandRunner: Sendable {
+public struct CommandRunner: Sendable {
+    public init() {}
 
     /// Run a shell command, calling `onLine` for each line of output.
     /// stdout lines are passed through to stdout, stderr lines to stderr.
     /// Returns collected lines with timestamps plus the exit code.
-    func run(command: String, onLine: LineCallback? = nil) throws -> CommandOutput {
+    public func run(command: String, onLine: LineCallback? = nil) throws -> CommandOutput {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/sh")
         process.arguments = ["-c", command]
@@ -37,8 +44,8 @@ struct CommandRunner: Sendable {
                 guard !line.isEmpty else { continue }
                 let offset = Date().timeIntervalSince(startTime)
                 let record = LineRecord(
-                    textHash: LineHash.md5(line),
-                    normalizedHash: LineHash.md5(CommandRunner.normalize(line)),
+                    textHash: LineHash.hash(line),
+                    normalizedHash: LineHash.normalizedHash(line),
                     offsetSeconds: offset
                 )
                 collectedLines.withLock { $0.append(record) }

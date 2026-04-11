@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import ProcessProgress
 
 @main
 struct ETA: ParsableCommand {
@@ -48,7 +49,7 @@ struct ETA: ParsableCommand {
     }
 
     func run() throws {
-        let store = HistoryStore()
+        let store = HistoryStore(appIdentifier: "eta")
 
         if list {
             try runList(store: store)
@@ -70,7 +71,7 @@ struct ETA: ParsableCommand {
     private func runCommand(store: HistoryStore, command: String) throws {
         let key = name ?? command
         let history = try store.load(command: key)
-        let calculator = ETACalculator(history: history)
+        let calculator = EstimateCalculator(history: history)
         let renderer = ProgressRenderer(color: color)
         let maxRuns = runs ?? 10
 

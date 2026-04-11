@@ -1,13 +1,13 @@
 import Foundation
 
 /// Calculates expected total duration and current progress from history.
-struct ETACalculator: Sendable {
-    let expectedTotal: Double
-    let hasHistory: Bool
+public struct EstimateCalculator: Sendable {
+    public let expectedTotal: Double
+    public let hasHistory: Bool
     private let matcher: LineMatcher
     private let totalReferenceLines: Int
 
-    init(history: CommandHistory?) {
+    public init(history: CommandHistory?) {
         guard let history, !history.runs.isEmpty else {
             self.expectedTotal = 0
             self.hasHistory = false
@@ -23,18 +23,18 @@ struct ETACalculator: Sendable {
     }
 
     /// Smooth time-based progress (0.0–1.0) from elapsed vs expected total.
-    func progress(elapsed: Double) -> Double {
+    public func progress(elapsed: Double) -> Double {
         guard expectedTotal > 0 else { return 0 }
         return min(1.0, elapsed / expectedTotal)
     }
 
     /// ETA in seconds from now. Negative means overdue.
-    func eta(elapsed: Double) -> Double {
+    public func eta(elapsed: Double) -> Double {
         expectedTotal - elapsed
     }
 
     /// Match a line against history.
-    func matchLine(_ text: String) -> Int? {
+    public func matchLine(_ text: String) -> Int? {
         matcher.match(text: text)
     }
 

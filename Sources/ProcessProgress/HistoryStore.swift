@@ -1,26 +1,20 @@
-import Foundation
 import CryptoKit
+import Foundation
 
-struct HistoryStore: Sendable {
+public struct HistoryStore: Sendable {
     private let directory: URL
 
-    init(directory: URL? = nil) {
-        self.directory = directory ?? Self.defaultCacheDirectory()
+    public init(appIdentifier: String) {
+        self.directory = Self.cacheDirectory(for: appIdentifier)
     }
 
-    private static func defaultCacheDirectory() -> URL {
-        #if os(macOS)
-        // ~/Library/Caches/eta — native macOS cache location
-        return FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Caches/eta")
-        #else
-        // Linux: $XDG_CACHE_HOME/eta or ~/.cache/eta
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        if let xdg = ProcessInfo.processInfo.environment["XDG_CACHE_HOME"], !xdg.isEmpty {
-            return URL(fileURLWithPath: xdg).appendingPathComponent("eta")
-        }
-        return home.appendingPathComponent(".cache/eta")
-        #endif
+    public init(directory: URL) {
+        self.directory = directory
+    }
+
+    private static func cacheDirectory(for appIdentifier: String) -> URL {
+        let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
+        return caches.appendingPathComponent(appIdentifier)
     }
 
     // MARK: - Fingerprinting
@@ -32,7 +26,7 @@ struct HistoryStore: Sendable {
 
     // MARK: - Load / Save
 
-    func load(command: String) throws -> CommandHistory? {
+    public func load(command: String) throws -> CommandHistory? {
         let file = filePath(for: command)
         guard FileManager.default.fileExists(atPath: file.path) else { return nil }
         let data = try Data(contentsOf: file)
@@ -41,7 +35,7 @@ struct HistoryStore: Sendable {
 
     static let maxLinesPerRun = 5000
 
-    func save(_ history: CommandHistory, maxRuns: Int = 10) throws {
+    public func save(_ history: CommandHistory, maxRuns: Int = 10) throws {
         var pruned = history
         if pruned.runs.count > maxRuns {
             pruned.runs = Array(pruned.runs.suffix(maxRuns))
@@ -70,7 +64,7 @@ struct HistoryStore: Sendable {
 
     // MARK: - List / Clear
 
-    func listAll() throws -> [CommandHistory] {
+    public func listAll() throws -> [CommandHistory] {
         let fm = FileManager.default
         guard fm.fileExists(atPath: directory.path) else { return [] }
         let files = try fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
@@ -84,7 +78,7 @@ struct HistoryStore: Sendable {
         }
     }
 
-    func clear(command: String) throws {
+    public func clear(command: String) throws {
         let file = filePath(for: command)
         let fm = FileManager.default
         if fm.fileExists(atPath: file.path) {
@@ -92,7 +86,7 @@ struct HistoryStore: Sendable {
         }
     }
 
-    func clearAll() throws {
+    public func clearAll() throws {
         let fm = FileManager.default
         guard fm.fileExists(atPath: directory.path) else { return }
         try fm.removeItem(at: directory)

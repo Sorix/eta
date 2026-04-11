@@ -1,16 +1,16 @@
 import Foundation
 
 /// Matches current output lines against historical runs to determine progress.
-struct LineMatcher: Sendable {
+public struct LineMatcher: Sendable {
     /// Historical lines from the best reference run, in order.
-    let referenceLines: [LineRecord]
+    public let referenceLines: [LineRecord]
 
     /// Exact text hash → index in referenceLines (first occurrence)
     private let exactIndex: [String: Int]
     /// Normalized text hash → index in referenceLines (first occurrence)
     private let normalizedIndex: [String: Int]
 
-    init(history: CommandHistory) {
+    public init(history: CommandHistory) {
         let refRun = history.runs.last
         let lines = refRun?.lines ?? []
         self.referenceLines = lines
@@ -30,10 +30,10 @@ struct LineMatcher: Sendable {
     }
 
     /// Match a line against the reference. Returns the index in referenceLines, or nil.
-    func match(text: String) -> Int? {
-        let textHash = LineHash.md5(text)
+    public func match(text: String) -> Int? {
+        let textHash = LineHash.hash(text)
         if let i = exactIndex[textHash] { return i }
-        let normHash = LineHash.md5(CommandRunner.normalize(text))
+        let normHash = LineHash.normalizedHash(text)
         return normalizedIndex[normHash]
     }
 }
