@@ -6,9 +6,9 @@ struct LineMatcher: Sendable {
     let referenceLines: [LineRecord]
 
     /// Exact text hash → index in referenceLines (first occurrence)
-    private let exactIndex: [UInt64: Int]
+    private let exactIndex: [String: Int]
     /// Normalized text hash → index in referenceLines (first occurrence)
-    private let normalizedIndex: [UInt64: Int]
+    private let normalizedIndex: [String: Int]
 
     init(history: CommandHistory) {
         // Use the most recent complete run as reference, fall back to most recent.
@@ -16,10 +16,9 @@ struct LineMatcher: Sendable {
         let lines = refRun?.lines ?? []
         self.referenceLines = lines
 
-        var exact: [UInt64: Int] = [:]
-        var normalized: [UInt64: Int] = [:]
+        var exact: [String: Int] = [:]
+        var normalized: [String: Int] = [:]
         for (i, line) in lines.enumerated() {
-            // Keep first occurrence — earlier lines are better progress anchors.
             if exact[line.textHash] == nil {
                 exact[line.textHash] = i
             }
@@ -33,9 +32,9 @@ struct LineMatcher: Sendable {
 
     /// Match a line against the reference. Returns the index in referenceLines, or nil.
     func match(text: String) -> Int? {
-        let textHash = FNV1a.hash(text)
+        let textHash = LineHash.md5(text)
         if let i = exactIndex[textHash] { return i }
-        let normHash = FNV1a.hash(CommandRunner.normalize(text))
+        let normHash = LineHash.md5(CommandRunner.normalize(text))
         return normalizedIndex[normHash]
     }
 }
