@@ -46,7 +46,7 @@ final class ProgressRenderer: @unchecked Sendable {
     // MARK: - Public API
 
     /// Update the progress bar. Thread-safe, throttled.
-    func update(progress: Double, elapsed: Double, eta: Double, runCount: Int, isLearning: Bool) {
+    func update(progress: Double, elapsed: Double, eta: Double, runCount: Int) {
         lock.lock()
         defer { lock.unlock() }
 
@@ -56,17 +56,17 @@ final class ProgressRenderer: @unchecked Sendable {
         guard now - lastDrawTime >= minDrawInterval else { return }
         lastDrawTime = now
 
-        draw(progress: progress, elapsed: elapsed, eta: eta, runCount: runCount, isLearning: isLearning)
+        draw(progress: progress, elapsed: elapsed, eta: eta, runCount: runCount)
     }
 
     /// Draw immediately, ignoring throttle. Thread-safe.
-    func forceUpdate(progress: Double, elapsed: Double, eta: Double, runCount: Int, isLearning: Bool) {
+    func forceUpdate(progress: Double, elapsed: Double, eta: Double, runCount: Int) {
         lock.lock()
         defer { lock.unlock() }
 
         guard terminal != nil else { return }
         lastDrawTime = ProcessInfo.processInfo.systemUptime
-        draw(progress: progress, elapsed: elapsed, eta: eta, runCount: runCount, isLearning: isLearning)
+        draw(progress: progress, elapsed: elapsed, eta: eta, runCount: runCount)
     }
 
     /// Clear the progress bar before printing output. Thread-safe.
@@ -82,7 +82,7 @@ final class ProgressRenderer: @unchecked Sendable {
     /// Atomically: clear bar → write line → redraw bar. Prevents timer races.
     func writeLineAndRedraw(line: String, isStderr: Bool,
                             progress: Double, elapsed: Double, eta: Double,
-                            runCount: Int, isLearning: Bool) {
+                            runCount: Int) {
         lock.lock()
         defer { lock.unlock() }
 
@@ -103,11 +103,11 @@ final class ProgressRenderer: @unchecked Sendable {
         guard terminal != nil else { return }
         lastDrawTime = ProcessInfo.processInfo.systemUptime
         draw(progress: progress, elapsed: elapsed, eta: eta,
-             runCount: runCount, isLearning: isLearning)
+             runCount: runCount)
     }
 
     /// Show completion summary and clear the bar.
-    func finish(elapsed: Double, expected: Double, hasHistory: Bool) {
+    func finish(elapsed: Double, expected: Double) {
         lock.lock()
         defer { lock.unlock() }
 
@@ -119,36 +119,27 @@ final class ProgressRenderer: @unchecked Sendable {
             barVisible = false
         }
 
-        if hasHistory {
-            let delta = elapsed - expected
-            let sign = delta >= 0 ? "+" : ""
-            writeTerminal("\u{1B}[32mDone in \(formatTime(elapsed))  (expected \(formatTime(expected)), delta \(sign)\(formatTime(delta)))\u{1B}[0m\n")
-        } else {
-            writeTerminal("\u{1B}[32mDone in \(formatTime(elapsed))\u{1B}[0m\n")
-        }
+        let delta = elapsed - expected
+        let sign = delta >= 0 ? "+" : ""
+        writeTerminal("\u{1B}[32mDone in \(formatTime(elapsed))  (expected \(formatTime(expected)), delta \(sign)\(formatTime(delta)))\u{1B}[0m\n")
     }
 
     // MARK: - Drawing
 
-    private func draw(progress: Double, elapsed: Double, eta: Double, runCount: Int, isLearning: Bool) {
+    private func draw(progress: Double, elapsed: Double, eta: Double, runCount: Int) {
         guard let terminalFD else { return }
         let termWidth = Self.terminalWidth(fileDescriptor: terminalFD)
         let bar = buildBar(
             progress: progress, elapsed: elapsed, eta: eta,
-            runCount: runCount, isLearning: isLearning, width: termWidth
+            runCount: runCount, width: termWidth
         )
         writeTerminal("\u{1B}[2K\r\(bar)")
         barVisible = true
     }
 
     private func buildBar(progress: Double, elapsed: Double, eta: Double,
-                          runCount: Int, isLearning: Bool, width: Int) -> String {
+                          runCount: Int, width: Int) -> String {
         let clampedProgress = max(0, min(1, progress))
-
-        if isLearning {
-            let elapsedStr = "elapsed: \(formatTime(elapsed))"
-            return "\u{1B}[33m[learning...]  \(elapsedStr)\u{1B}[0m"
-        }
 
         let pct = String(format: "%3.0f%%", clampedProgress * 100)
         let etaStr = eta > 0 ? "ETA \(formatTime(eta))" : "ETA 0s"
