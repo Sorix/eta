@@ -71,23 +71,21 @@ struct ETA: ParsableCommand {
         let renderer = ProgressRenderer()
         let maxRuns = runs ?? 10
 
-        let lastMatchedIndex = LockIsolated<Int>(-1)
         let startTime = Date()
         let runCount = history?.runs.count ?? 0
         let isLearning = !calculator.hasHistory
 
-        // Background timer: redraws bar every 100ms so elapsed/ETA stay live
+        // Background timer: redraws bar every 100ms so progress fills smoothly
         let timer: DispatchSourceTimer? = quiet ? nil : {
             let t = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .userInteractive))
             t.schedule(deadline: .now() + 0.1, repeating: 0.1)
-            t.setEventHandler { [renderer, calculator, lastMatchedIndex, startTime] in
+            t.setEventHandler { [renderer, calculator, startTime] in
                 let elapsed = Date().timeIntervalSince(startTime)
                 if isLearning {
                     renderer.update(progress: 0, elapsed: elapsed, eta: 0,
                                     runCount: 0, isLearning: true)
                 } else {
-                    let idx = lastMatchedIndex.withLock { $0 }
-                    let progress = calculator.progress(forMatchedIndex: idx, elapsed: elapsed)
+                    let progress = calculator.progress(elapsed: elapsed)
                     let eta = calculator.eta(elapsed: elapsed)
                     renderer.update(progress: progress, elapsed: elapsed, eta: eta,
                                     runCount: runCount, isLearning: false)
@@ -100,17 +98,9 @@ struct ETA: ParsableCommand {
         let quietFlag = quiet
         let runner = CommandRunner()
         let output = try runner.run(command: command) { line, offset, isStderr in
-            // Update matched progress before drawing
-            if !isLearning {
-                if let idx = calculator.matchLine(line) {
-                    lastMatchedIndex.withLock { $0 = max($0, idx) }
-                }
-            }
-
             let elapsed = Date().timeIntervalSince(startTime)
 
             if quietFlag {
-                // No bar — just write line directly
                 if isStderr {
                     FileHandle.standardError.write(Data((line + "\n").utf8))
                 } else {
@@ -126,8 +116,7 @@ struct ETA: ParsableCommand {
                     progress: 0, elapsed: elapsed, eta: 0,
                     runCount: 0, isLearning: true)
             } else {
-                let idx = lastMatchedIndex.withLock { $0 }
-                let progress = calculator.progress(forMatchedIndex: idx, elapsed: elapsed)
+                let progress = calculator.progress(elapsed: elapsed)
                 let eta = calculator.eta(elapsed: elapsed)
                 renderer.writeLineAndRedraw(
                     line: line, isStderr: isStderr,

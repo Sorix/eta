@@ -22,31 +22,10 @@ struct ETACalculator: Sendable {
         self.expectedTotal = Self.weightedMeanDuration(runs: history.runs)
     }
 
-    /// Progress (0.0–1.0) based on the matched line index.
-    func lineProgress(forMatchedIndex index: Int) -> Double {
-        guard totalReferenceLines > 0 else { return 0 }
-        return min(1.0, Double(index + 1) / Double(totalReferenceLines))
-    }
-
-    /// Time-based progress (0.0–1.0) from elapsed vs expected total.
-    func timeProgress(elapsed: Double) -> Double {
+    /// Smooth time-based progress (0.0–1.0) from elapsed vs expected total.
+    func progress(elapsed: Double) -> Double {
         guard expectedTotal > 0 else { return 0 }
         return min(1.0, elapsed / expectedTotal)
-    }
-
-    /// Blended progress: use time-based for smooth animation,
-    /// anchored by the last matched line so it doesn't run ahead.
-    func progress(forMatchedIndex index: Int, elapsed: Double) -> Double {
-        let timeProg = timeProgress(elapsed: elapsed)
-        guard index >= 0, totalReferenceLines > 0 else { return timeProg }
-
-        let lineProg = lineProgress(forMatchedIndex: index)
-
-        // Don't let time-based progress exceed the next line's expected position
-        // (prevents the bar from racing ahead of actual work)
-        let nextLineProg = min(1.0, Double(index + 2) / Double(totalReferenceLines))
-
-        return min(max(lineProg, timeProg), nextLineProg)
     }
 
     /// ETA in seconds from now. Negative means overdue.
