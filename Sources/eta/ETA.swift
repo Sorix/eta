@@ -74,10 +74,22 @@ struct ETA: ParsableCommand {
         let lastMatchedIndex = LockIsolated<Int>(-1)
         let startTime = Date()
 
+        let quietFlag = quiet
         let runner = CommandRunner()
-        let output = try runner.run(command: command) { line, offset, _ in
-            guard !quiet else { return }
+        let output = try runner.run(command: command) { line, offset, isStderr in
+            // 1. Clear the progress bar
+            renderer.clearBar()
 
+            // 2. Write the output line
+            if isStderr {
+                FileHandle.standardError.write(Data((line + "\n").utf8))
+            } else {
+                FileHandle.standardOutput.write(Data((line + "\n").utf8))
+            }
+
+            guard !quietFlag else { return }
+
+            // 3. Redraw the progress bar below the new line
             if calculator.hasHistory {
                 if let idx = calculator.matchLine(line) {
                     lastMatchedIndex.withLock { $0 = max($0, idx) }
@@ -88,14 +100,12 @@ struct ETA: ParsableCommand {
                 let eta = calculator.eta(elapsed: elapsed)
                 let runCount = history?.runs.count ?? 0
 
-                renderer.clearBar()
                 renderer.forceUpdate(
                     progress: progress, elapsed: elapsed, eta: eta,
                     runCount: runCount, isLearning: false
                 )
             } else {
                 let elapsed = Date().timeIntervalSince(startTime)
-                renderer.clearBar()
                 renderer.forceUpdate(
                     progress: 0, elapsed: elapsed, eta: 0,
                     runCount: 0, isLearning: true
