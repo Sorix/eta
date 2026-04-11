@@ -5,20 +5,17 @@ public struct EstimateCalculator: Sendable {
     public let expectedTotal: Double
     public let hasHistory: Bool
     private let matcher: LineMatcher
-    private let totalReferenceLines: Int
 
     public init(history: CommandHistory?) {
         guard let history, !history.runs.isEmpty else {
             self.expectedTotal = 0
             self.hasHistory = false
             self.matcher = LineMatcher(history: CommandHistory(command: "", runs: []))
-            self.totalReferenceLines = 0
             return
         }
 
         self.hasHistory = true
         self.matcher = LineMatcher(history: history)
-        self.totalReferenceLines = matcher.referenceLines.count
         self.expectedTotal = Self.weightedMeanDuration(runs: history.runs)
     }
 
@@ -36,6 +33,22 @@ public struct EstimateCalculator: Sendable {
     /// Match a line against history.
     public func matchLine(_ text: String) -> Int? {
         matcher.match(text: text)
+    }
+
+    func expectedOffset(forLineMatching text: String) -> Double? {
+        guard let index = matcher.match(text: text),
+              matcher.referenceLines.indices.contains(index),
+              expectedTotal > 0 else {
+            return nil
+        }
+
+        let line = matcher.referenceLines[index]
+        guard matcher.referenceTotalDuration > 0 else {
+            return min(expectedTotal, max(0, line.offsetSeconds))
+        }
+
+        let referenceProgress = min(1.0, max(0, line.offsetSeconds / matcher.referenceTotalDuration))
+        return referenceProgress * expectedTotal
     }
 
     // MARK: - Exponential Weighted Mean

@@ -62,6 +62,7 @@ struct ETA: ParsableCommand {
         let key = name ?? command
         let history = try store.load(command: key)
         let calculator = EstimateCalculator(history: history)
+        let progressTracker = AdaptiveProgressTracker(calculator: calculator)
         let renderer = ProgressRenderer(color: color)
         let maxRuns = runs ?? 10
         let hasHistory = calculator.hasHistory
@@ -70,20 +71,20 @@ struct ETA: ParsableCommand {
         let startTime = Date()
 
         if renderProgress {
-            renderer.forceUpdate(progress: calculator.progress(elapsed: 0),
+            let estimate = progressTracker.snapshot(elapsed: 0)
+            renderer.forceUpdate(progress: estimate.progress,
                                  elapsed: 0,
-                                 eta: calculator.eta(elapsed: 0))
+                                 eta: estimate.eta)
         }
 
         // Background timer: redraws bar at 5 fps.
         let timer: DispatchSourceTimer? = renderProgress ? {
             let t = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .userInteractive))
             t.schedule(deadline: .now() + 0.2, repeating: 0.2)
-            t.setEventHandler { [renderer, calculator, startTime] in
+            t.setEventHandler { [renderer, progressTracker, startTime] in
                 let elapsed = Date().timeIntervalSince(startTime)
-                let progress = calculator.progress(elapsed: elapsed)
-                let eta = calculator.eta(elapsed: elapsed)
-                renderer.update(progress: progress, elapsed: elapsed, eta: eta)
+                let estimate = progressTracker.snapshot(elapsed: elapsed)
+                renderer.update(progress: estimate.progress, elapsed: elapsed, eta: estimate.eta)
             }
             t.resume()
             return t
@@ -104,11 +105,10 @@ struct ETA: ParsableCommand {
             }
 
             // Atomic: clear bar → write line → redraw bar (race-free with timer)
-            let progress = calculator.progress(elapsed: elapsed)
-            let eta = calculator.eta(elapsed: elapsed)
+            let estimate = progressTracker.observeLine(line, elapsed: offset)
             renderer.writeLineAndRedraw(
                 line: line, isStderr: isStderr,
-                progress: progress, elapsed: elapsed, eta: eta)
+                progress: estimate.progress, elapsed: elapsed, eta: estimate.eta)
         }
 
         // Stop timer and finish
