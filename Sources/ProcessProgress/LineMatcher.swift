@@ -13,7 +13,11 @@ public struct LineMatcher: Sendable {
     private let normalizedIndex: [String: Int]
 
     public init(history: CommandHistory) {
-        let refRun = history.runs.last
+        self.init(runs: history.runs)
+    }
+
+    public init(runs: [Run]) {
+        let refRun = runs.last
         let lines = refRun?.lines ?? []
         self.referenceLines = lines
         self.referenceTotalDuration = refRun?.totalDuration ?? 0
@@ -38,5 +42,12 @@ public struct LineMatcher: Sendable {
         if let i = exactIndex[textHash] { return i }
         let normHash = LineHash.normalizedHash(text)
         return normalizedIndex[normHash]
+    }
+
+    /// Match a pre-hashed line record against the reference. Returns the index in
+    /// referenceLines, or nil.
+    public func match(line: LineRecord) -> Int? {
+        if let i = exactIndex[line.textHash] { return i }
+        return normalizedIndex[line.normalizedHash]
     }
 }
