@@ -7,10 +7,10 @@ public struct LineMatcher: Sendable {
     /// Duration of the run that provided referenceLines.
     public let referenceTotalDuration: Double
 
-    /// Exact text hash → index in referenceLines (first occurrence)
-    private let exactIndex: [String: Int]
-    /// Normalized text hash → index in referenceLines (first occurrence)
-    private let normalizedIndex: [String: Int]
+    /// Exact text hash -> indices in referenceLines.
+    private let exactIndices: [String: [Int]]
+    /// Normalized text hash -> indices in referenceLines.
+    private let normalizedIndices: [String: [Int]]
 
     public init(history: CommandHistory) {
         self.init(runs: history.runs)
@@ -22,32 +22,46 @@ public struct LineMatcher: Sendable {
         self.referenceLines = lines
         self.referenceTotalDuration = refRun?.totalDuration ?? 0
 
-        var exact: [String: Int] = [:]
-        var normalized: [String: Int] = [:]
+        var exact: [String: [Int]] = [:]
+        var normalized: [String: [Int]] = [:]
         for (i, line) in lines.enumerated() {
-            if exact[line.textHash] == nil {
-                exact[line.textHash] = i
-            }
-            if normalized[line.normalizedHash] == nil {
-                normalized[line.normalizedHash] = i
-            }
+            exact[line.textHash, default: []].append(i)
+            normalized[line.normalizedHash, default: []].append(i)
         }
-        self.exactIndex = exact
-        self.normalizedIndex = normalized
+        self.exactIndices = exact
+        self.normalizedIndices = normalized
     }
 
     /// Match a line against the reference. Returns the index in referenceLines, or nil.
     public func match(text: String) -> Int? {
+        match(text: text, after: -1)
+    }
+
+    /// Match a line against the reference after a previous reference index.
+    public func match(text: String, after previousIndex: Int) -> Int? {
         let textHash = LineHash.hash(text)
-        if let i = exactIndex[textHash] { return i }
+        if let i = Self.firstCandidate(in: exactIndices[textHash], after: previousIndex) {
+            return i
+        }
         let normHash = LineHash.normalizedHash(text)
-        return normalizedIndex[normHash]
+        return Self.firstCandidate(in: normalizedIndices[normHash], after: previousIndex)
     }
 
     /// Match a pre-hashed line record against the reference. Returns the index in
     /// referenceLines, or nil.
     public func match(line: LineRecord) -> Int? {
-        if let i = exactIndex[line.textHash] { return i }
-        return normalizedIndex[line.normalizedHash]
+        match(line: line, after: -1)
+    }
+
+    /// Match a pre-hashed line record after a previous reference index.
+    public func match(line: LineRecord, after previousIndex: Int) -> Int? {
+        if let i = Self.firstCandidate(in: exactIndices[line.textHash], after: previousIndex) {
+            return i
+        }
+        return Self.firstCandidate(in: normalizedIndices[line.normalizedHash], after: previousIndex)
+    }
+
+    private static func firstCandidate(in indices: [Int]?, after previousIndex: Int) -> Int? {
+        indices?.first { $0 > previousIndex }
     }
 }

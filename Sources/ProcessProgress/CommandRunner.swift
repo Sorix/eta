@@ -12,17 +12,32 @@ public struct CommandOutput: Sendable {
     }
 }
 
-/// Callback for each line of output. Parameters: (line text, line record, is stderr)
-/// The callback is responsible for writing the line to the terminal (if desired).
-public typealias LineCallback = @Sendable (String, LineRecord, Bool) -> Void
+/// A raw output chunk plus any complete line records observed in that chunk.
+public struct CommandOutputChunk: Sendable {
+    public let data: Data
+    public let records: [LineRecord]
+    public let isStderr: Bool
+    public let hasOpenLine: Bool
+
+    public init(data: Data, records: [LineRecord], isStderr: Bool, hasOpenLine: Bool) {
+        self.data = data
+        self.records = records
+        self.isStderr = isStderr
+        self.hasOpenLine = hasOpenLine
+    }
+}
+
+/// Callback for raw command output. The callback is responsible for writing
+/// `chunk.data` unchanged when custom rendering is needed.
+public typealias OutputCallback = @Sendable (CommandOutputChunk) -> Void
 
 public struct CommandRunner: Sendable {
     public init() {}
 
-    /// Run a shell command, calling `onLine` for each line of output.
-    /// stdout lines are passed through to stdout, stderr lines to stderr.
+    /// Run a shell command, calling `onOutput` for each raw output chunk.
+    /// Without a callback, stdout/stderr bytes are passed through unchanged.
     /// Returns collected lines with timestamps plus the exit code.
-    public func run(command: String, onLine: LineCallback? = nil) throws -> CommandOutput {
+    public func run(command: String, onOutput: OutputCallback? = nil) throws -> CommandOutput {
         let process = Process()
         let shellPath = ProcessInfo.processInfo.environment["SHELL"].flatMap { $0.isEmpty ? nil : $0 } ?? "/bin/sh"
         process.executableURL = URL(fileURLWithPath: shellPath)
@@ -35,33 +50,27 @@ public struct CommandRunner: Sendable {
 
         let startTime = Date()
         let collectedLines = LockIsolated<[LineRecord]>([])
-        let onLineCopy = onLine
+        let stdoutLineBuffer = LockIsolated(StreamLineBuffer())
+        let stderrLineBuffer = LockIsolated(StreamLineBuffer())
+        let onOutputCopy = onOutput
 
         let handleData: @Sendable (Data, Bool) -> Void = { data, isStderr in
-            guard let text = String(data: data, encoding: .utf8) else { return }
-            let rawLines = text.split(separator: "\n", omittingEmptySubsequences: false)
-            for rawLine in rawLines {
-                let line = String(rawLine)
-                guard !line.isEmpty else { continue }
-                let offset = Date().timeIntervalSince(startTime)
-                let record = LineRecord(
-                    textHash: LineHash.hash(line),
-                    normalizedHash: LineHash.normalizedHash(line),
-                    offsetSeconds: offset
-                )
-                collectedLines.withLock { $0.append(record) }
+            let buffer = isStderr ? stderrLineBuffer : stdoutLineBuffer
+            let update = buffer.withLock { $0.append(data, startTime: startTime) }
 
-                if let cb = onLineCopy {
-                    // Callback handles output (clear bar → write line → redraw bar)
-                    cb(line, record, isStderr)
-                } else {
-                    // No callback — write directly
-                    if isStderr {
-                        FileHandle.standardError.write(Data((line + "\n").utf8))
-                    } else {
-                        FileHandle.standardOutput.write(Data((line + "\n").utf8))
-                    }
-                }
+            if !update.records.isEmpty {
+                collectedLines.withLock { $0.append(contentsOf: update.records) }
+            }
+
+            if let callback = onOutputCopy {
+                callback(CommandOutputChunk(
+                    data: data,
+                    records: update.records,
+                    isStderr: isStderr,
+                    hasOpenLine: update.hasOpenLine
+                ))
+            } else {
+                Self.writeOutput(data, isStderr: isStderr)
             }
         }
 
@@ -90,6 +99,15 @@ public struct CommandRunner: Sendable {
         let remainingStderr = stderrPipe.fileHandleForReading.readDataToEndOfFile()
         if !remainingStderr.isEmpty { handleData(remainingStderr, true) }
 
+        let finalStdoutRecords = stdoutLineBuffer.withLock { $0.flushFinalLine(startTime: startTime) }
+        let finalStderrRecords = stderrLineBuffer.withLock { $0.flushFinalLine(startTime: startTime) }
+        if !finalStdoutRecords.isEmpty || !finalStderrRecords.isEmpty {
+            collectedLines.withLock {
+                $0.append(contentsOf: finalStdoutRecords)
+                $0.append(contentsOf: finalStderrRecords)
+            }
+        }
+
         let totalDuration = Date().timeIntervalSince(startTime)
 
         return CommandOutput(
@@ -101,17 +119,19 @@ public struct CommandRunner: Sendable {
 
     // MARK: - Line Normalization
 
-    /// Strip digits and collapse whitespace for fuzzy line matching.
+    /// Collapse numeric runs and whitespace for fuzzy line matching.
     static func normalize(_ text: String) -> String {
         var result = ""
         result.reserveCapacity(text.count)
         var lastWasSpace = false
+        var lastWasDigit = false
         for ch in text {
             if ch.isNumber {
-                if !lastWasSpace {
+                if !lastWasDigit {
                     result.append("N")
-                    lastWasSpace = false
                 }
+                lastWasSpace = false
+                lastWasDigit = true
                 continue
             }
             if ch.isWhitespace {
@@ -119,12 +139,68 @@ public struct CommandRunner: Sendable {
                     result.append(" ")
                     lastWasSpace = true
                 }
+                lastWasDigit = false
             } else {
                 result.append(ch)
                 lastWasSpace = false
+                lastWasDigit = false
             }
         }
         return result.trimmingCharacters(in: .whitespaces)
+    }
+
+    private static func writeOutput(_ data: Data, isStderr: Bool) {
+        let handle = isStderr ? FileHandle.standardError : FileHandle.standardOutput
+        handle.write(data)
+    }
+}
+
+private struct StreamLineBuffer: Sendable {
+    struct Update: Sendable {
+        let records: [LineRecord]
+        let hasOpenLine: Bool
+    }
+
+    private var pending = Data()
+
+    mutating func append(_ data: Data, startTime: Date) -> Update {
+        var records: [LineRecord] = []
+
+        for byte in data {
+            if byte == 0x0A {
+                if let record = Self.makeRecord(from: pending, startTime: startTime) {
+                    records.append(record)
+                }
+                pending.removeAll(keepingCapacity: true)
+            } else {
+                pending.append(byte)
+            }
+        }
+
+        return Update(records: records, hasOpenLine: !pending.isEmpty)
+    }
+
+    mutating func flushFinalLine(startTime: Date) -> [LineRecord] {
+        defer { pending.removeAll(keepingCapacity: false) }
+        guard let record = Self.makeRecord(from: pending, startTime: startTime) else {
+            return []
+        }
+        return [record]
+    }
+
+    private static func makeRecord(from lineData: Data, startTime: Date) -> LineRecord? {
+        guard !lineData.isEmpty,
+              let line = String(data: lineData, encoding: .utf8),
+              !line.isEmpty else {
+            return nil
+        }
+
+        let offset = Date().timeIntervalSince(startTime)
+        return LineRecord(
+            textHash: LineHash.hash(line),
+            normalizedHash: LineHash.normalizedHash(line),
+            offsetSeconds: offset
+        )
     }
 }
 

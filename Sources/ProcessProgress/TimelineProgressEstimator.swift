@@ -76,6 +76,10 @@ public final class TimelineProgressEstimator: @unchecked Sendable {
     }
 
     public var hasArchive: Bool {
+        hasHistory
+    }
+
+    public var hasHistory: Bool {
         calculator.hasHistory
     }
 
@@ -132,7 +136,7 @@ public final class TimelineProgressEstimator: @unchecked Sendable {
     }
 
     private func observeCurrentLineWithoutLock(_ line: LineRecord) {
-        guard let match = calculator.referenceMatch(for: line),
+        guard let match = calculator.referenceMatch(for: line, after: lastMatchedReferenceIndex),
               match.index > lastMatchedReferenceIndex else {
             return
         }

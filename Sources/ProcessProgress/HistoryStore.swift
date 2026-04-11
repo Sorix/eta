@@ -1,5 +1,16 @@
 import Foundation
 
+public enum HistoryStoreError: Error, LocalizedError, Sendable {
+    case invalidMaxRuns(Int)
+
+    public var errorDescription: String? {
+        switch self {
+        case .invalidMaxRuns(let value):
+            return "maxRuns must be greater than 0 (got \(value))."
+        }
+    }
+}
+
 public struct HistoryStore: Sendable {
     private let directory: URL
 
@@ -34,6 +45,10 @@ public struct HistoryStore: Sendable {
     static let maxLinesPerRun = 5000
 
     public func save(_ history: CommandHistory, maxRuns: Int = 10) throws {
+        guard maxRuns > 0 else {
+            throw HistoryStoreError.invalidMaxRuns(maxRuns)
+        }
+
         var pruned = history
         if pruned.runs.count > maxRuns {
             pruned.runs = Array(pruned.runs.suffix(maxRuns))
