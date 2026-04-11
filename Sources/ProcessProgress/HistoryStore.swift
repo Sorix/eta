@@ -62,21 +62,7 @@ public struct HistoryStore: Sendable {
         return result
     }
 
-    // MARK: - List / Clear
-
-    public func listAll() throws -> [CommandHistory] {
-        let fm = FileManager.default
-        guard fm.fileExists(atPath: directory.path) else { return [] }
-        let files = try fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
-            .filter { $0.pathExtension == "json" }
-
-        return files.compactMap { file in
-            guard let data = try? Data(contentsOf: file),
-                  let history = try? JSONDecoder.withISO8601.decode(CommandHistory.self, from: data)
-            else { return nil }
-            return history
-        }
-    }
+    // MARK: - Clear
 
     public func clear(command: String) throws {
         let file = filePath(for: command)
