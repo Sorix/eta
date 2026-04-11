@@ -22,18 +22,25 @@ enum BarColor: String, CaseIterable, Sendable {
     }
 }
 
-/// ANSI progress bar that renders as a sticky line on stderr.
+/// ANSI progress bar that renders as a sticky line on the controlling terminal.
 final class ProgressRenderer: @unchecked Sendable {
     private let lock = NSLock()
-    private let isTTY: Bool
+    private let terminal: FileHandle?
+    private let terminalFD: Int32?
     private let color: BarColor
     private var lastDrawTime: TimeInterval = 0
     private let minDrawInterval: TimeInterval = 1.0 / 15.0  // ~15 fps
     private var barVisible = false
 
     init(color: BarColor = .green) {
-        self.isTTY = isatty(STDERR_FILENO) != 0
+        let terminal = Self.openTerminal()
+        self.terminal = terminal?.handle
+        self.terminalFD = terminal?.fileDescriptor
         self.color = color
+    }
+
+    var isEnabled: Bool {
+        terminal != nil
     }
 
     // MARK: - Public API
@@ -43,7 +50,7 @@ final class ProgressRenderer: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
 
-        guard isTTY else { return }
+        guard terminal != nil else { return }
 
         let now = ProcessInfo.processInfo.systemUptime
         guard now - lastDrawTime >= minDrawInterval else { return }
@@ -57,7 +64,7 @@ final class ProgressRenderer: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
 
-        guard isTTY else { return }
+        guard terminal != nil else { return }
         lastDrawTime = ProcessInfo.processInfo.systemUptime
         draw(progress: progress, elapsed: elapsed, eta: eta, runCount: runCount, isLearning: isLearning)
     }
@@ -67,8 +74,8 @@ final class ProgressRenderer: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
 
-        guard isTTY, barVisible else { return }
-        writeStderr("\u{1B}[2K\r")
+        guard terminal != nil, barVisible else { return }
+        writeTerminal("\u{1B}[2K\r")
         barVisible = false
     }
 
@@ -80,8 +87,8 @@ final class ProgressRenderer: @unchecked Sendable {
         defer { lock.unlock() }
 
         // Clear current bar
-        if isTTY, barVisible {
-            writeStderr("\u{1B}[2K\r")
+        if terminal != nil, barVisible {
+            writeTerminal("\u{1B}[2K\r")
             barVisible = false
         }
 
@@ -93,7 +100,7 @@ final class ProgressRenderer: @unchecked Sendable {
         }
 
         // Redraw bar
-        guard isTTY else { return }
+        guard terminal != nil else { return }
         lastDrawTime = ProcessInfo.processInfo.systemUptime
         draw(progress: progress, elapsed: elapsed, eta: eta,
              runCount: runCount, isLearning: isLearning)
@@ -104,32 +111,33 @@ final class ProgressRenderer: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
 
-        guard isTTY else { return }
+        guard terminal != nil else { return }
 
         // Clear the bar
         if barVisible {
-            writeStderr("\u{1B}[2K\r")
+            writeTerminal("\u{1B}[2K\r")
             barVisible = false
         }
 
         if hasHistory {
             let delta = elapsed - expected
             let sign = delta >= 0 ? "+" : ""
-            writeStderr("\u{1B}[32mDone in \(formatTime(elapsed))  (expected \(formatTime(expected)), delta \(sign)\(formatTime(delta)))\u{1B}[0m\n")
+            writeTerminal("\u{1B}[32mDone in \(formatTime(elapsed))  (expected \(formatTime(expected)), delta \(sign)\(formatTime(delta)))\u{1B}[0m\n")
         } else {
-            writeStderr("\u{1B}[32mDone in \(formatTime(elapsed))\u{1B}[0m\n")
+            writeTerminal("\u{1B}[32mDone in \(formatTime(elapsed))\u{1B}[0m\n")
         }
     }
 
     // MARK: - Drawing
 
     private func draw(progress: Double, elapsed: Double, eta: Double, runCount: Int, isLearning: Bool) {
-        let termWidth = Self.terminalWidth()
+        guard let terminalFD else { return }
+        let termWidth = Self.terminalWidth(fileDescriptor: terminalFD)
         let bar = buildBar(
             progress: progress, elapsed: elapsed, eta: eta,
             runCount: runCount, isLearning: isLearning, width: termWidth
         )
-        writeStderr("\u{1B}[2K\r\(bar)")
+        writeTerminal("\u{1B}[2K\r\(bar)")
         barVisible = true
     }
 
@@ -160,8 +168,8 @@ final class ProgressRenderer: @unchecked Sendable {
 
     // MARK: - Helpers
 
-    private func writeStderr(_ string: String) {
-        FileHandle.standardError.write(Data(string.utf8))
+    private func writeTerminal(_ string: String) {
+        terminal?.write(Data(string.utf8))
     }
 
     private func formatTime(_ seconds: Double) -> String {
@@ -176,9 +184,16 @@ final class ProgressRenderer: @unchecked Sendable {
         }
     }
 
-    static func terminalWidth() -> Int {
+    private static func openTerminal() -> (handle: FileHandle, fileDescriptor: Int32)? {
+        guard let handle = FileHandle(forWritingAtPath: "/dev/tty") else { return nil }
+        let fileDescriptor = handle.fileDescriptor
+        guard isatty(fileDescriptor) != 0 else { return nil }
+        return (handle, fileDescriptor)
+    }
+
+    static func terminalWidth(fileDescriptor: Int32) -> Int {
         var w = winsize()
-        if ioctl(STDERR_FILENO, TIOCGWINSZ, &w) == 0, w.ws_col > 0 {
+        if ioctl(fileDescriptor, TIOCGWINSZ, &w) == 0, w.ws_col > 0 {
             return Int(w.ws_col)
         }
         return 80
