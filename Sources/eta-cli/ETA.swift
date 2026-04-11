@@ -21,6 +21,9 @@ struct ETA: ParsableCommand {
     @Flag(name: .long, help: "Learn execution time without showing a progress bar.")
     var quiet = false
 
+    @Flag(name: .long, help: "Draw a single solid progress fill instead of shading predicted progress.")
+    var solid = false
+
     @Option(name: .long, help: "Number of recent runs to use for averaging (default: 10).")
     var runs: Int?
 
@@ -62,7 +65,7 @@ struct ETA: ParsableCommand {
         let key = name ?? command
         let history = try store.load(command: key)
         let progressEstimator = TimelineProgressEstimator(history: history)
-        let renderer = ProgressRenderer(color: color)
+        let renderer = ProgressRenderer(color: color, style: solid ? .solid : .layered)
         let maxRuns = runs ?? 10
         let hasHistory = progressEstimator.hasArchive
         let renderProgress = !quiet && renderer.isEnabled && hasHistory

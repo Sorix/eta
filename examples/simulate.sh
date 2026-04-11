@@ -1,41 +1,84 @@
 #!/bin/bash
-# Simulates a ~20s build-like process with varied output lines
+# Simulates a build-like process with repeatable output and varied timing.
+#
+# To see confirmed vs predicted progress:
+#   ETA_SIM_PROFILE=stable swift run eta --name eta-sim './examples/simulate.sh'
+#   ETA_SIM_PROFILE=random swift run eta --name eta-sim './examples/simulate.sh'
+#
+# Profiles:
+#   stable  fixed baseline sleeps
+#   fast    about 55% of baseline sleeps
+#   slow    about 175% of baseline sleeps
+#   random  random sleeps between ETA_SIM_MIN_PERCENT and ETA_SIM_MAX_PERCENT
+
+sleep_step() {
+    local base="$1"
+    local profile="${ETA_SIM_PROFILE:-random}"
+    local factor
+
+    case "$profile" in
+        stable)
+            factor=100
+            ;;
+        fast)
+            factor=55
+            ;;
+        slow)
+            factor=175
+            ;;
+        random)
+            local min="${ETA_SIM_MIN_PERCENT:-45}"
+            local max="${ETA_SIM_MAX_PERCENT:-180}"
+            if (( max < min )); then
+                max="$min"
+            fi
+            factor=$((min + RANDOM % (max - min + 1)))
+            ;;
+        *)
+            factor=100
+            ;;
+    esac
+
+    local seconds
+    seconds="$(awk -v base="$base" -v factor="$factor" 'BEGIN { printf "%.2f", base * factor / 100 }')"
+    sleep "$seconds"
+}
 
 echo "==> Configuring project..."
-sleep 1.2
+sleep_step 1.2
 
 echo "==> Resolving dependencies..."
-sleep 0.8
+sleep_step 0.8
 
 echo "[1/8] Compiling utils.c"
-sleep 2.0
+sleep_step 2.0
 
 echo "[2/8] Compiling parser.c"
-sleep 3.1
+sleep_step 3.1
 
 echo "[3/8] Compiling lexer.c"
-sleep 2.5
+sleep_step 2.5
 
 echo "[4/8] Compiling codegen.c"
-sleep 1.8
+sleep_step 1.8
 
 echo "[5/8] Compiling optimizer.c"
-sleep 2.4
+sleep_step 2.4
 
 echo "[6/8] Compiling runtime.c"
-sleep 1.5
+sleep_step 1.5
 
 echo "[7/8] Compiling main.c"
-sleep 1.0
+sleep_step 1.0
 
 echo "[8/8] Compiling tests.c"
-sleep 0.9
+sleep_step 0.9
 
 echo "==> Linking binary..."
-sleep 1.8
+sleep_step 1.8
 
 echo "==> Running 42 tests..."
-sleep 1.2
+sleep_step 1.2
 
 echo "All tests passed."
 echo "Build complete! ($(date +%s)s)"

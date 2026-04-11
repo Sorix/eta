@@ -37,6 +37,7 @@ eta <command>              Run a command with progress tracking
   --name <name>            Custom alias for the command fingerprint
   --color <color>          Bar color: green, yellow, red, blue, magenta, cyan, white
   --quiet                  Learn execution time without showing a progress bar
+  --solid                  Draw a single solid fill instead of shading predicted progress
   --runs <runs>            History depth (default: 10)
   --clear <command>        Clear history for a command
   --clear-all              Clear all history
@@ -59,7 +60,7 @@ eta <command>              Run a command with progress tracking
 - Line matching: exact MD5 hash first, normalized fallback (digits stripped, whitespace collapsed)
 - Command keys stored as SHA256 hashes and lines stored as MD5 hashes (not raw text) for privacy — `Insecure.MD5` is fine for line matching (one-way, collisions harmless)
 - ETA: exponential weighted mean (α=0.3), recent runs weighted higher via `EstimateCalculator`
-- Progress bar: time-based baseline adjusted by `TimelineProgressEstimator` from archived runs plus the current log; late newer milestones may move visual progress backward, shown immediately, updated at 5 fps while idle and immediately after command output
+- Progress bar: `TimelineProgressEstimator` returns confirmed progress from matched historical lines plus predicted progress from timer projection; renderer draws confirmed as solid fill, predicted-only as shaded fill, and empty progress as spaces; `--solid` draws predicted progress as one solid fill; ETA is based on predicted progress
 - Atomic clear→write→redraw under lock prevents timer/output races
 - History: JSON files keyed by SHA256 of the command key (`--name` or command string) and storing only that hash
   - macOS: `~/Library/Caches/eta/`
