@@ -25,15 +25,33 @@ struct HistoryStore: Sendable {
         return try JSONDecoder.withISO8601.decode(CommandHistory.self, from: data)
     }
 
+    static let maxLinesPerRun = 1000
+
     func save(_ history: CommandHistory, maxRuns: Int = 10) throws {
         var pruned = history
         if pruned.runs.count > maxRuns {
             pruned.runs = Array(pruned.runs.suffix(maxRuns))
         }
+        pruned.runs = pruned.runs.map { run in
+            Run(date: run.date, totalDuration: run.totalDuration,
+                lines: Self.downsample(run.lines, max: Self.maxLinesPerRun))
+        }
 
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let data = try JSONEncoder.withISO8601.encode(pruned)
         try data.write(to: filePath(for: history.commandString), options: .atomic)
+    }
+
+    /// Evenly sample lines across the full run, always keeping first and last.
+    static func downsample(_ lines: [LineRecord], max: Int) -> [LineRecord] {
+        guard lines.count > max, max >= 2 else { return lines }
+        var result = [lines[0]]
+        let step = Double(lines.count - 1) / Double(max - 1)
+        for i in 1..<(max - 1) {
+            result.append(lines[Int((Double(i) * step).rounded())])
+        }
+        result.append(lines[lines.count - 1])
+        return result
     }
 
     // MARK: - List / Clear
