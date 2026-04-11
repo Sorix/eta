@@ -11,8 +11,7 @@ struct LineMatcher: Sendable {
     private let normalizedIndex: [String: Int]
 
     init(history: CommandHistory) {
-        // Use the most recent complete run as reference, fall back to most recent.
-        let refRun = history.runs.last(where: { $0.complete }) ?? history.runs.last
+        let refRun = history.runs.last
         let lines = refRun?.lines ?? []
         self.referenceLines = lines
 

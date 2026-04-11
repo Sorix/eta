@@ -43,19 +43,14 @@ struct ETACalculator: Sendable {
     /// Compute exponential weighted mean of run durations.
     /// More recent runs get higher weight. α = 0.3 (recent bias).
     private static func weightedMeanDuration(runs: [Run]) -> Double {
-        let completedRuns = runs.filter { $0.complete }
-        guard !completedRuns.isEmpty else {
-            // Fall back to all runs if none are marked complete.
-            return runs.last?.totalDuration ?? 0
-        }
+        guard !runs.isEmpty else { return 0 }
 
         let alpha = 0.3
         var weight = 1.0
         var totalWeight = 0.0
         var weightedSum = 0.0
 
-        // Iterate from most recent to oldest.
-        for run in completedRuns.reversed() {
+        for run in runs.reversed() {
             weightedSum += run.totalDuration * weight
             totalWeight += weight
             weight *= (1.0 - alpha)
