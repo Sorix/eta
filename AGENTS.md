@@ -58,8 +58,8 @@ eta <command>              Run a command with progress tracking
 - Line matching: exact MD5 hash first, normalized fallback (digits stripped, whitespace collapsed)
 - Command keys stored as SHA256 hashes and lines stored as MD5 hashes (not raw text) for privacy — `Insecure.MD5` is fine for line matching (one-way, collisions harmless)
 - ETA: exponential weighted mean (α=0.3), recent runs weighted higher via `EstimateCalculator`
-- Progress bar: time-based (`elapsed / expectedTotal`), updated once per second via background timer
-- Atomic clear→write→refresh under lock prevents timer/output races
+- Progress bar: time-based (`elapsed / expectedTotal`), updated once per second while idle and immediately after command output
+- Atomic clear→write→redraw under lock prevents timer/output races
 - History: JSON files keyed by SHA256 of the command key (`--name` or command string) and storing only that hash
   - macOS: `~/Library/Caches/eta/`
   - Linux: `$XDG_CACHE_HOME/eta/` or `~/.cache/eta/`

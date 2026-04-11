@@ -52,7 +52,7 @@ public struct CommandRunner: Sendable {
                 collectedLines.withLock { $0.append(record) }
 
                 if let cb = onLineCopy {
-                    // Callback handles output (clear bar → write line → refresh bar)
+                    // Callback handles output (clear bar → write line → redraw bar)
                     cb(line, offset, isStderr)
                 } else {
                     // No callback — write directly
