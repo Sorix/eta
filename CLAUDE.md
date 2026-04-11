@@ -26,7 +26,7 @@ Sources/
 └── eta-cli/                 # Executable target "eta"
     ├── BarColor+ArgumentParser.swift # ArgumentParser conformance for BarColor
     ├── ETA.swift            # @main, ArgumentParser command, all CLI flags
-    └── ProgressRenderer.swift # ANSI progress bar on stderr, TTY detection, BarColor
+    └── ProgressRenderer.swift # ANSI progress bar on /dev/tty, TTY detection, BarColor
 ```
 
 ## CLI Flags
@@ -56,7 +56,7 @@ eta <command>              Run a command with progress tracking
 
 ## Key Design Decisions
 
-- Progress bar writes to **stderr** — stdout stays clean for piping
+- Progress bar writes to the controlling terminal (`/dev/tty`) — wrapped command stdout/stderr stay clean for piping/logging
 - Line matching: exact MD5 hash first, normalized fallback (digits stripped, whitespace collapsed)
 - Lines stored as MD5 hashes (not raw text) for privacy — `Insecure.MD5` is fine here (one-way, collisions harmless)
 - ETA: exponential weighted mean (α=0.3), recent runs weighted higher via `EstimateCalculator`

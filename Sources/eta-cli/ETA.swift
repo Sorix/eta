@@ -55,10 +55,10 @@ struct ETA: ParsableCommand {
             try runList(store: store)
         } else if let clear {
             try store.clear(command: clear)
-            printStderr("Cleared history for '\(clear)'.")
+            printStdout("Cleared history for '\(clear)'.")
         } else if clearAll {
             try store.clearAll()
-            printStderr("Cleared all history.")
+            printStdout("Cleared all history.")
         } else if let stats {
             try runStats(store: store, command: stats)
         } else if let command {
@@ -74,13 +74,14 @@ struct ETA: ParsableCommand {
         let calculator = EstimateCalculator(history: history)
         let renderer = ProgressRenderer(color: color)
         let maxRuns = runs ?? 10
+        let renderProgress = !quiet && renderer.isEnabled
 
         let startTime = Date()
         let runCount = history?.runs.count ?? 0
         let isLearning = !calculator.hasHistory
 
         // Background timer: redraws bar every 100ms so progress fills smoothly
-        let timer: DispatchSourceTimer? = quiet ? nil : {
+        let timer: DispatchSourceTimer? = renderProgress ? {
             let t = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .userInteractive))
             t.schedule(deadline: .now() + 0.1, repeating: 0.1)
             t.setEventHandler { [renderer, calculator, startTime] in
@@ -97,14 +98,14 @@ struct ETA: ParsableCommand {
             }
             t.resume()
             return t
-        }()
+        }() : nil
 
-        let quietFlag = quiet
+        let renderProgressFlag = renderProgress
         let runner = CommandRunner()
         let output = try runner.run(command: command) { line, offset, isStderr in
             let elapsed = Date().timeIntervalSince(startTime)
 
-            if quietFlag {
+            if !renderProgressFlag {
                 if isStderr {
                     FileHandle.standardError.write(Data((line + "\n").utf8))
                 } else {
@@ -131,7 +132,7 @@ struct ETA: ParsableCommand {
 
         // Stop timer and finish
         timer?.cancel()
-        if !quiet {
+        if renderProgress {
             renderer.finish(
                 elapsed: output.totalDuration,
                 expected: calculator.expectedTotal,
@@ -160,12 +161,12 @@ struct ETA: ParsableCommand {
     private func runList(store: HistoryStore) throws {
         let histories = try store.listAll()
         guard !histories.isEmpty else {
-            printStderr("No learned commands yet.")
+            printStdout("No learned commands yet.")
             return
         }
 
-        printStderr("\("COMMAND".padding(toLength: 40, withPad: " ", startingAt: 0))  \("RUNS".padding(toLength: 5, withPad: " ", startingAt: 0))  AVG TIME")
-        printStderr(String(repeating: "─", count: 60))
+        printStdout("\("COMMAND".padding(toLength: 40, withPad: " ", startingAt: 0))  \("RUNS".padding(toLength: 5, withPad: " ", startingAt: 0))  AVG TIME")
+        printStdout(String(repeating: "─", count: 60))
 
         for hist in histories {
             let label = hist.customName ?? hist.commandString
@@ -174,7 +175,7 @@ struct ETA: ParsableCommand {
                 hist.runs.map(\.totalDuration).reduce(0, +) / Double(hist.runs.count)
             let col1 = truncated.padding(toLength: 40, withPad: " ", startingAt: 0)
             let col2 = String(hist.runs.count).padding(toLength: 5, withPad: " ", startingAt: 0)
-            printStderr("\(col1)  \(col2)  \(formatTime(avgDuration))")
+            printStdout("\(col1)  \(col2)  \(formatTime(avgDuration))")
         }
     }
 
@@ -191,19 +192,23 @@ struct ETA: ParsableCommand {
             throw ExitCode.failure
         }
 
-        printStderr("Stats for '\(history.customName ?? command)' (\(history.runs.count) runs)")
-        printStderr(String(format: "Last run: %.1fs", lastRun.totalDuration))
-        printStderr("")
-        printStderr("\("OFFSET".padding(toLength: 8, withPad: " ", startingAt: 0))  \("TEXT HASH".padding(toLength: 32, withPad: " ", startingAt: 0))  NORMALIZED HASH")
-        printStderr(String(repeating: "─", count: 78))
+        printStdout("Stats for '\(history.customName ?? command)' (\(history.runs.count) runs)")
+        printStdout(String(format: "Last run: %.1fs", lastRun.totalDuration))
+        printStdout("")
+        printStdout("\("OFFSET".padding(toLength: 8, withPad: " ", startingAt: 0))  \("TEXT HASH".padding(toLength: 32, withPad: " ", startingAt: 0))  NORMALIZED HASH")
+        printStdout(String(repeating: "─", count: 78))
 
         for line in lastRun.lines {
             let offset = String(format: "%7.1fs", line.offsetSeconds)
-            printStderr("\(offset)  \(line.textHash)  \(line.normalizedHash)")
+            printStdout("\(offset)  \(line.textHash)  \(line.normalizedHash)")
         }
     }
 
     // MARK: - Helpers
+
+    private func printStdout(_ message: String) {
+        FileHandle.standardOutput.write(Data((message + "\n").utf8))
+    }
 
     private func printStderr(_ message: String) {
         FileHandle.standardError.write(Data((message + "\n").utf8))
