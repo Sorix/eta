@@ -16,14 +16,17 @@ Always pipe `swift build` output through `xcbeautify` for readable build output.
 ## Project Structure
 
 ```
-Sources/eta/
-├── ETA.swift               # @main, ArgumentParser command, all CLI flags
-├── Models.swift            # CommandHistory, Run, LineRecord, FNV/MD5 hashing
-├── HistoryStore.swift      # JSON load/save, pruning, line downsampling
-├── CommandRunner.swift     # Process wrapper, line timestamping, normalization
-├── LineMatcher.swift       # Exact hash → normalized hash fallback matching
-├── ETACalculator.swift     # Exponential weighted mean ETA, time-based progress
-└── ProgressRenderer.swift  # ANSI progress bar on stderr, TTY detection, BarColor
+Sources/
+├── ProcessProgress/         # Library target, no ArgumentParser dependency
+│   ├── Models.swift         # CommandHistory, Run, LineRecord, MD5 hashing
+│   ├── HistoryStore.swift   # JSON load/save, pruning, line downsampling
+│   ├── CommandRunner.swift  # Process wrapper, line timestamping, normalization
+│   ├── LineMatcher.swift    # Exact hash → normalized hash fallback matching
+│   └── EstimateCalculator.swift # Exponential weighted mean ETA, time-based progress
+└── eta-cli/                 # Executable target "eta"
+    ├── BarColor+ArgumentParser.swift # ArgumentParser conformance for BarColor
+    ├── ETA.swift            # @main, ArgumentParser command, all CLI flags
+    └── ProgressRenderer.swift # ANSI progress bar on stderr, TTY detection, BarColor
 ```
 
 ## CLI Flags
@@ -56,7 +59,7 @@ eta <command>              Run a command with progress tracking
 - Progress bar writes to **stderr** — stdout stays clean for piping
 - Line matching: exact MD5 hash first, normalized fallback (digits stripped, whitespace collapsed)
 - Lines stored as MD5 hashes (not raw text) for privacy — `Insecure.MD5` is fine here (one-way, collisions harmless)
-- ETA: exponential weighted mean (α=0.3), recent runs weighted higher
+- ETA: exponential weighted mean (α=0.3), recent runs weighted higher via `EstimateCalculator`
 - Progress bar: smooth time-based (`elapsed / expectedTotal`), updated every 100ms via background timer
 - Atomic clear→write→redraw under lock prevents timer/output races
 - History: JSON files keyed by SHA256 of command string

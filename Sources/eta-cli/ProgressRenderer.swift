@@ -5,10 +5,8 @@ import Darwin
 import Glibc
 #endif
 
-import ArgumentParser
-
 /// ANSI color names for the --color flag.
-enum BarColor: String, CaseIterable, Sendable, ExpressibleByArgument {
+enum BarColor: String, CaseIterable, Sendable {
     case green, yellow, red, blue, magenta, cyan, white
 
     var ansiCode: String {
