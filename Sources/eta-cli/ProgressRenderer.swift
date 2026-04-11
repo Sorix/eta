@@ -79,10 +79,10 @@ final class ProgressRenderer: @unchecked Sendable {
         barVisible = false
     }
 
-    /// Atomically: clear bar → write line → refresh bar when due. Prevents timer races.
-    func writeLineAndRefresh(line: String, isStderr: Bool,
-                             progress: Double, elapsed: Double, eta: Double,
-                             runCount: Int, isLearning: Bool) {
+    /// Atomically: clear bar → write line → redraw bar. Prevents timer races.
+    func writeLineAndRedraw(line: String, isStderr: Bool,
+                            progress: Double, elapsed: Double, eta: Double,
+                            runCount: Int, isLearning: Bool) {
         lock.lock()
         defer { lock.unlock() }
 
@@ -99,11 +99,9 @@ final class ProgressRenderer: @unchecked Sendable {
             FileHandle.standardOutput.write(Data((line + "\n").utf8))
         }
 
-        // Redraw bar when due. Chatty commands should not force high-frequency refreshes.
+        // Always redraw after command output so the bar stays attached to the latest line.
         guard terminal != nil else { return }
-        let now = ProcessInfo.processInfo.systemUptime
-        guard now - lastDrawTime >= minDrawInterval else { return }
-        lastDrawTime = now
+        lastDrawTime = ProcessInfo.processInfo.systemUptime
         draw(progress: progress, elapsed: elapsed, eta: eta,
              runCount: runCount, isLearning: isLearning)
     }

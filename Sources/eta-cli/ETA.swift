@@ -104,16 +104,16 @@ struct ETA: ParsableCommand {
                 return
             }
 
-            // Atomic: clear bar → write line → refresh bar when due (race-free with timer)
+            // Atomic: clear bar → write line → redraw bar (race-free with timer)
             if isLearning {
-                renderer.writeLineAndRefresh(
+                renderer.writeLineAndRedraw(
                     line: line, isStderr: isStderr,
                     progress: 0, elapsed: elapsed, eta: 0,
                     runCount: 0, isLearning: true)
             } else {
                 let progress = calculator.progress(elapsed: elapsed)
                 let eta = calculator.eta(elapsed: elapsed)
-                renderer.writeLineAndRefresh(
+                renderer.writeLineAndRedraw(
                     line: line, isStderr: isStderr,
                     progress: progress, elapsed: elapsed, eta: eta,
                     runCount: runCount, isLearning: false)
