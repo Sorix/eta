@@ -75,15 +75,15 @@ public struct EstimateCalculator: Sendable {
             return nil
         }
 
-        let line = matcher.referenceLines[index]
+        let refLine = matcher.referenceLines[index]
         guard matcher.referenceTotalDuration > 0 else {
             return ReferenceLineMatch(
                 index: index,
-                expectedOffset: min(expectedTotal, max(0, line.offsetSeconds))
+                expectedOffset: min(expectedTotal, max(0, refLine.offsetSeconds))
             )
         }
 
-        let referenceProgress = min(1.0, max(0, line.offsetSeconds / matcher.referenceTotalDuration))
+        let referenceProgress = min(1.0, max(0, refLine.offsetSeconds / matcher.referenceTotalDuration))
         return ReferenceLineMatch(
             index: index,
             expectedOffset: referenceProgress * expectedTotal

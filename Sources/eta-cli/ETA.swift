@@ -1,4 +1,9 @@
 import ArgumentParser
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#endif
 import Foundation
 import ProcessProgress
 
@@ -94,13 +99,29 @@ struct ETA: ParsableCommand {
             return t
         }() : nil
 
+        // Clean up progress bar on SIGINT/SIGTERM so the terminal isn't left dirty.
+        let signalSources: [DispatchSourceSignal] = renderProgress ? {
+            var sources: [DispatchSourceSignal] = []
+            for sig in [SIGINT, SIGTERM] {
+                signal(sig, SIG_IGN)
+                let source = DispatchSource.makeSignalSource(signal: sig, queue: .global())
+                source.setEventHandler {
+                    renderer.cleanup()
+                    signal(sig, SIG_DFL)
+                    raise(sig)
+                }
+                source.resume()
+                sources.append(source)
+            }
+            return sources
+        }() : []
+
         let runner = CommandRunner()
         let output: CommandOutput
         if renderProgress {
             output = try runner.run(command: command) { chunk in
                 let elapsed = Date().timeIntervalSince(startTime)
                 var estimate = progressEstimator.estimate(elapsed: elapsed)
-
                 for record in chunk.records {
                     estimate = progressEstimator.observeCurrentLine(record, elapsed: elapsed)
                 }
@@ -117,8 +138,13 @@ struct ETA: ParsableCommand {
             output = try runner.run(command: command)
         }
 
-        // Stop timer and finish
+        // Stop timer, signal handlers, and finish
         timer?.cancel()
+        for source in signalSources { source.cancel() }
+        if !signalSources.isEmpty {
+            signal(SIGINT, SIG_DFL)
+            signal(SIGTERM, SIG_DFL)
+        }
         if renderProgress {
             renderer.finish(
                 elapsed: output.totalDuration,
@@ -134,7 +160,11 @@ struct ETA: ParsableCommand {
                 totalDuration: output.totalDuration,
                 lines: output.lines
             ))
-            try store.save(hist, maxRuns: maxRuns)
+            do {
+                try store.save(hist, maxRuns: maxRuns)
+            } catch {
+                printStderr("eta: warning: failed to save history: \(error.localizedDescription)")
+            }
         } else {
             throw ExitCode(output.exitCode)
         }
@@ -144,5 +174,9 @@ struct ETA: ParsableCommand {
 
     private func printStdout(_ message: String) {
         FileHandle.standardOutput.write(Data((message + "\n").utf8))
+    }
+
+    private func printStderr(_ message: String) {
+        FileHandle.standardError.write(Data((message + "\n").utf8))
     }
 }

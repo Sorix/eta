@@ -23,7 +23,9 @@ public struct HistoryStore: Sendable {
     }
 
     private static func cacheDirectory(for appIdentifier: String) -> URL {
-        let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
+        guard let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else {
+            fatalError("No user cache directory found — FileManager returned empty array for .cachesDirectory")
+        }
         return caches.appendingPathComponent(appIdentifier)
     }
 
@@ -39,7 +41,9 @@ public struct HistoryStore: Sendable {
         let file = filePath(for: command)
         guard FileManager.default.fileExists(atPath: file.path) else { return nil }
         let data = try Data(contentsOf: file)
-        return try JSONDecoder.withISO8601.decode(CommandHistory.self, from: data)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode(CommandHistory.self, from: data)
     }
 
     static let maxLinesPerRun = 5000
@@ -59,7 +63,10 @@ public struct HistoryStore: Sendable {
         }
 
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let data = try JSONEncoder.withISO8601.encode(pruned)
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let data = try encoder.encode(pruned)
         try data.write(to: filePath(forFingerprint: history.commandHash), options: .atomic)
     }
 
@@ -102,21 +109,3 @@ public struct HistoryStore: Sendable {
     }
 }
 
-// MARK: - JSON Coding Helpers
-
-private extension JSONEncoder {
-    static let withISO8601: JSONEncoder = {
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        return encoder
-    }()
-}
-
-private extension JSONDecoder {
-    static let withISO8601: JSONDecoder = {
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        return decoder
-    }()
-}
