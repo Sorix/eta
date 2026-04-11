@@ -87,7 +87,7 @@ struct ETA: ParsableCommand {
                                     runCount: 0, isLearning: true)
                 } else {
                     let idx = lastMatchedIndex.withLock { $0 }
-                    let progress = idx >= 0 ? calculator.progress(forMatchedIndex: idx) : 0
+                    let progress = calculator.progress(forMatchedIndex: idx, elapsed: elapsed)
                     let eta = calculator.eta(elapsed: elapsed)
                     renderer.update(progress: progress, elapsed: elapsed, eta: eta,
                                     runCount: runCount, isLearning: false)
@@ -127,7 +127,7 @@ struct ETA: ParsableCommand {
                     runCount: 0, isLearning: true)
             } else {
                 let idx = lastMatchedIndex.withLock { $0 }
-                let progress = idx >= 0 ? calculator.progress(forMatchedIndex: idx) : 0
+                let progress = calculator.progress(forMatchedIndex: idx, elapsed: elapsed)
                 let eta = calculator.eta(elapsed: elapsed)
                 renderer.writeLineAndRedraw(
                     line: line, isStderr: isStderr,
