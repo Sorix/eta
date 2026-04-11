@@ -7,6 +7,7 @@ struct CommandOutput: Sendable {
 }
 
 /// Callback for each line of output. Parameters: (line text, offset seconds, is stderr)
+/// The callback is responsible for writing the line to the terminal (if desired).
 typealias LineCallback = @Sendable (String, Double, Bool) -> Void
 
 struct CommandRunner: Sendable {
@@ -42,13 +43,17 @@ struct CommandRunner: Sendable {
                 )
                 collectedLines.withLock { $0.append(record) }
 
-                if isStderr {
-                    FileHandle.standardError.write(Data((line + "\n").utf8))
+                if let cb = onLineCopy {
+                    // Callback handles output (clear bar → write line → redraw bar)
+                    cb(line, offset, isStderr)
                 } else {
-                    FileHandle.standardOutput.write(Data((line + "\n").utf8))
+                    // No callback — write directly
+                    if isStderr {
+                        FileHandle.standardError.write(Data((line + "\n").utf8))
+                    } else {
+                        FileHandle.standardOutput.write(Data((line + "\n").utf8))
+                    }
                 }
-
-                onLineCopy?(line, offset, isStderr)
             }
         }
 
