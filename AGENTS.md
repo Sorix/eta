@@ -35,10 +35,8 @@ Sources/
 eta <command>              Run a command with progress tracking
   --name <name>            Custom alias for the command fingerprint
   --color <color>          Bar color: green, yellow, red, blue, magenta, cyan, white
-  --quiet                  No progress bar, pure pass-through
+  --quiet                  Learn execution time without showing a progress bar
   --runs <runs>            History depth (default: 10)
-  --list                   List all learned commands
-  --stats <command>        Per-line timing breakdown
   --clear <command>        Clear history for a command
   --clear-all              Clear all history
 ```
