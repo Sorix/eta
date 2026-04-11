@@ -29,7 +29,7 @@ final class ProgressRenderer: @unchecked Sendable {
     private let terminalFD: Int32?
     private let color: BarColor
     private var lastDrawTime: TimeInterval = 0
-    private let minDrawInterval: TimeInterval = 1.0
+    private let minDrawInterval: TimeInterval = 0.2
     private var barVisible = false
 
     init(color: BarColor = .green) {
@@ -59,7 +59,7 @@ final class ProgressRenderer: @unchecked Sendable {
         draw(progress: progress, elapsed: elapsed, eta: eta, runCount: runCount, isLearning: isLearning)
     }
 
-    /// Force a redraw (e.g., on new output line). Thread-safe.
+    /// Draw immediately, ignoring throttle. Thread-safe.
     func forceUpdate(progress: Double, elapsed: Double, eta: Double, runCount: Int, isLearning: Bool) {
         lock.lock()
         defer { lock.unlock() }
