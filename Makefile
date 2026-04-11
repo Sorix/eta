@@ -1,7 +1,9 @@
+SHELL := /bin/bash
+
 PREFIX ?= /usr/local
 
 build:
-	swift build -c release
+	set -o pipefail; swift build -c release 2>&1 | xcbeautify --is-ci
 
 install: build
 	install -d $(PREFIX)/bin

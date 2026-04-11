@@ -47,6 +47,7 @@ final class ProgressRenderer: @unchecked Sendable {
     private var lastDrawTime: TimeInterval = 0
     private let minDrawInterval: TimeInterval = 0.2
     private var barVisible = false
+    private var outputHasOpenLine = false
 
     init(color: BarColor = .green, style: ProgressBarStyle = .layered) {
         let terminal = Self.openTerminal()
@@ -63,62 +64,46 @@ final class ProgressRenderer: @unchecked Sendable {
     // MARK: - Public API
 
     /// Update the progress bar. Thread-safe, throttled.
-    func update(progress: ProgressFill, elapsed: Double, eta: Double) {
+    func update(progress: ProgressFill, eta: Double) {
         lock.lock()
         defer { lock.unlock() }
 
-        guard terminal != nil else { return }
+        guard terminal != nil, !outputHasOpenLine else { return }
 
         let now = ProcessInfo.processInfo.systemUptime
         guard now - lastDrawTime >= minDrawInterval else { return }
         lastDrawTime = now
 
-        draw(progress: progress, elapsed: elapsed, eta: eta)
+        draw(progress: progress, eta: eta)
     }
 
     /// Draw immediately, ignoring throttle. Thread-safe.
-    func forceUpdate(progress: ProgressFill, elapsed: Double, eta: Double) {
+    func forceUpdate(progress: ProgressFill, eta: Double) {
         lock.lock()
         defer { lock.unlock() }
 
         guard terminal != nil else { return }
         lastDrawTime = ProcessInfo.processInfo.systemUptime
-        draw(progress: progress, elapsed: elapsed, eta: eta)
+        draw(progress: progress, eta: eta)
     }
 
-    /// Clear the progress bar before printing output. Thread-safe.
-    func clearBar() {
+    /// Atomically: clear bar, write raw output, then redraw when on a fresh line.
+    func writeOutputAndRedraw(data: Data, isStderr: Bool, progress: ProgressFill,
+                              eta: Double, hasOpenLine: Bool) {
         lock.lock()
         defer { lock.unlock() }
 
-        guard terminal != nil, barVisible else { return }
-        writeTerminal("\u{1B}[2K\r")
-        barVisible = false
-    }
-
-    /// Atomically: clear bar → write line → redraw bar. Prevents timer races.
-    func writeLineAndRedraw(line: String, isStderr: Bool,
-                            progress: ProgressFill, elapsed: Double, eta: Double) {
-        lock.lock()
-        defer { lock.unlock() }
-
-        // Clear current bar
         if terminal != nil, barVisible {
             writeTerminal("\u{1B}[2K\r")
             barVisible = false
         }
 
-        // Write the output line
-        if isStderr {
-            FileHandle.standardError.write(Data((line + "\n").utf8))
-        } else {
-            FileHandle.standardOutput.write(Data((line + "\n").utf8))
-        }
+        writeCommandOutput(data, isStderr: isStderr)
+        outputHasOpenLine = hasOpenLine
 
-        // Always redraw after command output so the bar stays attached to the latest line.
-        guard terminal != nil else { return }
+        guard terminal != nil, !outputHasOpenLine else { return }
         lastDrawTime = ProcessInfo.processInfo.systemUptime
-        draw(progress: progress, elapsed: elapsed, eta: eta)
+        draw(progress: progress, eta: eta)
     }
 
     /// Show completion summary and clear the bar.
@@ -133,6 +118,10 @@ final class ProgressRenderer: @unchecked Sendable {
             writeTerminal("\u{1B}[2K\r")
             barVisible = false
         }
+        if outputHasOpenLine {
+            writeTerminal("\n")
+            outputHasOpenLine = false
+        }
 
         let delta = elapsed - expected
         let sign = delta >= 0 ? "+" : ""
@@ -141,19 +130,18 @@ final class ProgressRenderer: @unchecked Sendable {
 
     // MARK: - Drawing
 
-    private func draw(progress: ProgressFill, elapsed: Double, eta: Double) {
+    private func draw(progress: ProgressFill, eta: Double) {
         guard let terminalFD else { return }
         let termWidth = Self.terminalWidth(fileDescriptor: terminalFD)
         let bar = buildBar(
-            progress: progress, elapsed: elapsed, eta: eta,
+            progress: progress, eta: eta,
             width: termWidth
         )
         writeTerminal("\u{1B}[2K\r\(bar)")
         barVisible = true
     }
 
-    private func buildBar(progress: ProgressFill, elapsed: Double, eta: Double,
-                          width: Int) -> String {
+    private func buildBar(progress: ProgressFill, eta: Double, width: Int) -> String {
         let confirmedProgress = progress.confirmed
         let predictedProgress = progress.predicted
 
@@ -189,6 +177,11 @@ final class ProgressRenderer: @unchecked Sendable {
 
     private func writeTerminal(_ string: String) {
         terminal?.write(Data(string.utf8))
+    }
+
+    private func writeCommandOutput(_ data: Data, isStderr: Bool) {
+        let handle = isStderr ? FileHandle.standardError : FileHandle.standardOutput
+        handle.write(data)
     }
 
     private func formatTime(_ seconds: Double) -> String {

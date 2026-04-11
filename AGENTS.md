@@ -57,7 +57,7 @@ eta <command>              Run a command with progress tracking
 ## Key Design Decisions
 
 - Progress bar writes to the controlling terminal (`/dev/tty`) — wrapped command stdout/stderr stay clean for piping/logging
-- Line matching: exact MD5 hash first, normalized fallback (digits stripped, whitespace collapsed)
+- Line matching: exact MD5 hash first, normalized fallback (numeric runs collapsed, whitespace collapsed)
 - Command keys stored as SHA256 hashes and lines stored as MD5 hashes (not raw text) for privacy — `Insecure.MD5` is fine for line matching (one-way, collisions harmless)
 - ETA: exponential weighted mean (α=0.3), recent runs weighted higher via `EstimateCalculator`
 - Progress bar: `TimelineProgressEstimator` returns confirmed progress from matched historical lines plus predicted progress from timer projection; renderer draws confirmed as solid fill, predicted-only as shaded fill, and empty progress as spaces; `--solid` draws predicted progress as one solid fill; ETA is based on predicted progress

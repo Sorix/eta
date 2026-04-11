@@ -43,6 +43,9 @@ struct ETA: ParsableCommand {
         if activeCount > 1 {
             throw ValidationError("Use only one mode at a time (command, --clear, --clear-all).")
         }
+        if let runs, runs <= 0 {
+            throw ValidationError("--runs must be greater than 0.")
+        }
     }
 
     func run() throws {
@@ -67,7 +70,7 @@ struct ETA: ParsableCommand {
         let progressEstimator = TimelineProgressEstimator(history: history)
         let renderer = ProgressRenderer(color: color, style: solid ? .solid : .layered)
         let maxRuns = runs ?? 10
-        let hasHistory = progressEstimator.hasArchive
+        let hasHistory = progressEstimator.hasHistory
         let renderProgress = !quiet && renderer.isEnabled && hasHistory
 
         let startTime = Date()
@@ -75,7 +78,6 @@ struct ETA: ParsableCommand {
         if renderProgress {
             let estimate = progressEstimator.estimate(elapsed: 0)
             renderer.forceUpdate(progress: estimate.progress,
-                                 elapsed: 0,
                                  eta: estimate.eta)
         }
 
@@ -86,31 +88,33 @@ struct ETA: ParsableCommand {
             t.setEventHandler { [renderer, progressEstimator, startTime] in
                 let elapsed = Date().timeIntervalSince(startTime)
                 let estimate = progressEstimator.estimate(elapsed: elapsed)
-                renderer.update(progress: estimate.progress, elapsed: elapsed, eta: estimate.eta)
+                renderer.update(progress: estimate.progress, eta: estimate.eta)
             }
             t.resume()
             return t
         }() : nil
 
-        let renderProgressFlag = renderProgress
         let runner = CommandRunner()
-        let output = try runner.run(command: command) { line, record, isStderr in
-            let elapsed = Date().timeIntervalSince(startTime)
+        let output: CommandOutput
+        if renderProgress {
+            output = try runner.run(command: command) { chunk in
+                let elapsed = Date().timeIntervalSince(startTime)
+                var estimate = progressEstimator.estimate(elapsed: elapsed)
 
-            if !renderProgressFlag {
-                if isStderr {
-                    FileHandle.standardError.write(Data((line + "\n").utf8))
-                } else {
-                    FileHandle.standardOutput.write(Data((line + "\n").utf8))
+                for record in chunk.records {
+                    estimate = progressEstimator.observeCurrentLine(record, elapsed: elapsed)
                 }
-                return
-            }
 
-            // Atomic: clear bar → write line → redraw bar (race-free with timer)
-            let estimate = progressEstimator.observeCurrentLine(record)
-            renderer.writeLineAndRedraw(
-                line: line, isStderr: isStderr,
-                progress: estimate.progress, elapsed: elapsed, eta: estimate.eta)
+                renderer.writeOutputAndRedraw(
+                    data: chunk.data,
+                    isStderr: chunk.isStderr,
+                    progress: estimate.progress,
+                    eta: estimate.eta,
+                    hasOpenLine: chunk.hasOpenLine
+                )
+            }
+        } else {
+            output = try runner.run(command: command)
         }
 
         // Stop timer and finish
@@ -140,9 +144,5 @@ struct ETA: ParsableCommand {
 
     private func printStdout(_ message: String) {
         FileHandle.standardOutput.write(Data((message + "\n").utf8))
-    }
-
-    private func printStderr(_ message: String) {
-        FileHandle.standardError.write(Data((message + "\n").utf8))
     }
 }

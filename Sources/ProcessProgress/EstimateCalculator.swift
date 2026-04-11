@@ -53,13 +53,23 @@ public struct EstimateCalculator: Sendable {
         matcher.match(text: text)
     }
 
+    /// Match a line against history after a previous reference index.
+    public func matchLine(_ text: String, after previousIndex: Int) -> Int? {
+        matcher.match(text: text, after: previousIndex)
+    }
+
     /// Match a pre-hashed line record against history.
     public func matchLine(_ line: LineRecord) -> Int? {
         matcher.match(line: line)
     }
 
-    func referenceMatch(for line: LineRecord) -> ReferenceLineMatch? {
-        guard let index = matcher.match(line: line),
+    /// Match a pre-hashed line record against history after a previous reference index.
+    public func matchLine(_ line: LineRecord, after previousIndex: Int) -> Int? {
+        matcher.match(line: line, after: previousIndex)
+    }
+
+    func referenceMatch(for line: LineRecord, after previousIndex: Int = -1) -> ReferenceLineMatch? {
+        guard let index = matcher.match(line: line, after: previousIndex),
               matcher.referenceLines.indices.contains(index),
               expectedTotal > 0 else {
             return nil
