@@ -68,13 +68,11 @@ struct ETA: ParsableCommand {
         let renderProgress = !quiet && renderer.isEnabled && hasHistory
 
         let startTime = Date()
-        let runCount = history?.runs.count ?? 0
 
         if renderProgress {
             renderer.forceUpdate(progress: calculator.progress(elapsed: 0),
                                  elapsed: 0,
-                                 eta: calculator.eta(elapsed: 0),
-                                 runCount: runCount)
+                                 eta: calculator.eta(elapsed: 0))
         }
 
         // Background timer: redraws bar at 5 fps.
@@ -85,8 +83,7 @@ struct ETA: ParsableCommand {
                 let elapsed = Date().timeIntervalSince(startTime)
                 let progress = calculator.progress(elapsed: elapsed)
                 let eta = calculator.eta(elapsed: elapsed)
-                renderer.update(progress: progress, elapsed: elapsed, eta: eta,
-                                runCount: runCount)
+                renderer.update(progress: progress, elapsed: elapsed, eta: eta)
             }
             t.resume()
             return t
@@ -111,8 +108,7 @@ struct ETA: ParsableCommand {
             let eta = calculator.eta(elapsed: elapsed)
             renderer.writeLineAndRedraw(
                 line: line, isStderr: isStderr,
-                progress: progress, elapsed: elapsed, eta: eta,
-                runCount: runCount)
+                progress: progress, elapsed: elapsed, eta: eta)
         }
 
         // Stop timer and finish

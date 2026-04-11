@@ -46,7 +46,7 @@ final class ProgressRenderer: @unchecked Sendable {
     // MARK: - Public API
 
     /// Update the progress bar. Thread-safe, throttled.
-    func update(progress: Double, elapsed: Double, eta: Double, runCount: Int) {
+    func update(progress: Double, elapsed: Double, eta: Double) {
         lock.lock()
         defer { lock.unlock() }
 
@@ -56,17 +56,17 @@ final class ProgressRenderer: @unchecked Sendable {
         guard now - lastDrawTime >= minDrawInterval else { return }
         lastDrawTime = now
 
-        draw(progress: progress, elapsed: elapsed, eta: eta, runCount: runCount)
+        draw(progress: progress, elapsed: elapsed, eta: eta)
     }
 
     /// Draw immediately, ignoring throttle. Thread-safe.
-    func forceUpdate(progress: Double, elapsed: Double, eta: Double, runCount: Int) {
+    func forceUpdate(progress: Double, elapsed: Double, eta: Double) {
         lock.lock()
         defer { lock.unlock() }
 
         guard terminal != nil else { return }
         lastDrawTime = ProcessInfo.processInfo.systemUptime
-        draw(progress: progress, elapsed: elapsed, eta: eta, runCount: runCount)
+        draw(progress: progress, elapsed: elapsed, eta: eta)
     }
 
     /// Clear the progress bar before printing output. Thread-safe.
@@ -81,8 +81,7 @@ final class ProgressRenderer: @unchecked Sendable {
 
     /// Atomically: clear bar → write line → redraw bar. Prevents timer races.
     func writeLineAndRedraw(line: String, isStderr: Bool,
-                            progress: Double, elapsed: Double, eta: Double,
-                            runCount: Int) {
+                            progress: Double, elapsed: Double, eta: Double) {
         lock.lock()
         defer { lock.unlock() }
 
@@ -102,8 +101,7 @@ final class ProgressRenderer: @unchecked Sendable {
         // Always redraw after command output so the bar stays attached to the latest line.
         guard terminal != nil else { return }
         lastDrawTime = ProcessInfo.processInfo.systemUptime
-        draw(progress: progress, elapsed: elapsed, eta: eta,
-             runCount: runCount)
+        draw(progress: progress, elapsed: elapsed, eta: eta)
     }
 
     /// Show completion summary and clear the bar.
@@ -126,25 +124,24 @@ final class ProgressRenderer: @unchecked Sendable {
 
     // MARK: - Drawing
 
-    private func draw(progress: Double, elapsed: Double, eta: Double, runCount: Int) {
+    private func draw(progress: Double, elapsed: Double, eta: Double) {
         guard let terminalFD else { return }
         let termWidth = Self.terminalWidth(fileDescriptor: terminalFD)
         let bar = buildBar(
             progress: progress, elapsed: elapsed, eta: eta,
-            runCount: runCount, width: termWidth
+            width: termWidth
         )
         writeTerminal("\u{1B}[2K\r\(bar)")
         barVisible = true
     }
 
     private func buildBar(progress: Double, elapsed: Double, eta: Double,
-                          runCount: Int, width: Int) -> String {
+                          width: Int) -> String {
         let clampedProgress = max(0, min(1, progress))
 
         let pct = String(format: "%3.0f%%", clampedProgress * 100)
         let etaStr = eta > 0 ? "ETA \(formatTime(eta))" : "ETA 0s"
-        let runsStr = "(\(runCount) runs)"
-        let suffix = "  \(pct)  \(etaStr)  \(runsStr)"
+        let suffix = "  \(pct)  \(etaStr)"
 
         // Bar width: total width minus brackets, suffix, and padding
         let barWidth = max(10, width - suffix.count - 3)
