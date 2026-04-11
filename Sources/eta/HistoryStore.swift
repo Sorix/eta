@@ -25,7 +25,7 @@ struct HistoryStore: Sendable {
         return try JSONDecoder.withISO8601.decode(CommandHistory.self, from: data)
     }
 
-    static let maxLinesPerRun = 1000
+    static let maxLinesPerRun = 5000
 
     func save(_ history: CommandHistory, maxRuns: Int = 10) throws {
         var pruned = history
