@@ -5,8 +5,22 @@ struct HistoryStore: Sendable {
     private let directory: URL
 
     init(directory: URL? = nil) {
-        self.directory = directory ?? FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".eta/history")
+        self.directory = directory ?? Self.defaultCacheDirectory()
+    }
+
+    private static func defaultCacheDirectory() -> URL {
+        #if os(macOS)
+        // ~/Library/Caches/eta — native macOS cache location
+        return FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Caches/eta")
+        #else
+        // Linux: $XDG_CACHE_HOME/eta or ~/.cache/eta
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        if let xdg = ProcessInfo.processInfo.environment["XDG_CACHE_HOME"], !xdg.isEmpty {
+            return URL(fileURLWithPath: xdg).appendingPathComponent("eta")
+        }
+        return home.appendingPathComponent(".cache/eta")
+        #endif
     }
 
     // MARK: - Fingerprinting

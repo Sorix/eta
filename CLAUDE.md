@@ -5,8 +5,8 @@ A command-line tool that learns how long your commands take and shows a live pro
 ## Build & Run
 
 ```bash
-swift build 2>&1 | xcbeautify        # debug build
-swift build -c release 2>&1 | xcbeautify  # release build
+swift build 2>&1 | xcbeautify --is-ci        # debug build
+swift build -c release 2>&1 | xcbeautify --is-ci  # release build
 swift run eta 'your command here'    # run directly
 make install                         # install to /usr/local/bin
 ```
@@ -42,7 +42,9 @@ Sources/eta/
 - Progress bar writes to **stderr** — stdout stays clean for piping
 - Line matching: exact hash first, normalized fallback (digits stripped, whitespace collapsed)
 - ETA: exponential weighted mean (α=0.3), recent runs weighted higher
-- History: JSON files in `~/.eta/history/`, keyed by SHA256 of command string
+- History: JSON files keyed by SHA256 of command string
+  - macOS: `~/Library/Caches/eta/`
+  - Linux: `$XDG_CACHE_HOME/eta/` or `~/.cache/eta/`
 - Non-zero exit: saved with `complete: false`, down-weighted in ETA calculation
 - Swift 6 strict concurrency throughout
 
