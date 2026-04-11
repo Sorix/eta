@@ -70,10 +70,23 @@ struct ETA: ParsableCommand {
         let runCount = history?.runs.count ?? 0
         let isLearning = !calculator.hasHistory
 
-        // Background timer: redraws bar once per second.
+        if renderProgress {
+            if isLearning {
+                renderer.forceUpdate(progress: 0, elapsed: 0, eta: 0,
+                                     runCount: 0, isLearning: true)
+            } else {
+                renderer.forceUpdate(progress: calculator.progress(elapsed: 0),
+                                     elapsed: 0,
+                                     eta: calculator.eta(elapsed: 0),
+                                     runCount: runCount,
+                                     isLearning: false)
+            }
+        }
+
+        // Background timer: redraws bar at 5 fps.
         let timer: DispatchSourceTimer? = renderProgress ? {
             let t = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .userInteractive))
-            t.schedule(deadline: .now() + 1.0, repeating: 1.0)
+            t.schedule(deadline: .now() + 0.2, repeating: 0.2)
             t.setEventHandler { [renderer, calculator, startTime] in
                 let elapsed = Date().timeIntervalSince(startTime)
                 if isLearning {
