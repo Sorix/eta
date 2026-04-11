@@ -10,7 +10,6 @@ struct LineRecord: Codable, Sendable {
 struct Run: Codable, Sendable {
     let date: Date
     let totalDuration: Double
-    let complete: Bool
     let lines: [LineRecord]
 }
 

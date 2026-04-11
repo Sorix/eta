@@ -138,20 +138,18 @@ struct ETA: ParsableCommand {
             )
         }
 
-        // Save run
-        var hist = history ?? CommandHistory(commandString: key, runs: [])
-        hist.commandString = key
-        if name != nil { hist.customName = name }
-        hist.runs.append(Run(
-            date: Date(),
-            totalDuration: output.totalDuration,
-            complete: output.exitCode == 0,
-            lines: output.lines
-        ))
-        try store.save(hist, maxRuns: maxRuns)
-
-        // Propagate exit code
-        if output.exitCode != 0 {
+        // Only save successful runs — failed runs are useless for estimation
+        if output.exitCode == 0 {
+            var hist = history ?? CommandHistory(commandString: key, runs: [])
+            hist.commandString = key
+            if name != nil { hist.customName = name }
+            hist.runs.append(Run(
+                date: Date(),
+                totalDuration: output.totalDuration,
+                lines: output.lines
+            ))
+            try store.save(hist, maxRuns: maxRuns)
+        } else {
             throw ExitCode(output.exitCode)
         }
     }
@@ -193,7 +191,7 @@ struct ETA: ParsableCommand {
         }
 
         printStderr("Stats for '\(history.customName ?? command)' (\(history.runs.count) runs)")
-        printStderr(String(format: "Last run: %.1fs (%@)", lastRun.totalDuration, lastRun.complete ? "complete" : "incomplete"))
+        printStderr(String(format: "Last run: %.1fs", lastRun.totalDuration))
         printStderr("")
         printStderr("\("OFFSET".padding(toLength: 8, withPad: " ", startingAt: 0))  \("TEXT HASH".padding(toLength: 32, withPad: " ", startingAt: 0))  NORMALIZED HASH")
         printStderr(String(repeating: "─", count: 78))
