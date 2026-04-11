@@ -132,9 +132,7 @@ struct ETA: ParsableCommand {
 
         // Only save successful runs — failed runs are useless for estimation
         if output.exitCode == 0 {
-            var hist = history ?? CommandHistory(commandString: key, runs: [])
-            hist.commandString = key
-            if name != nil { hist.customName = name }
+            var hist = history ?? CommandHistory(command: key, runs: [])
             hist.runs.append(Run(
                 date: Date(),
                 totalDuration: output.totalDuration,

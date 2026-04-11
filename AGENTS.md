@@ -18,7 +18,7 @@ Always pipe `swift build` output through `xcbeautify` for readable build output.
 ```
 Sources/
 ├── ProcessProgress/         # Library target, no ArgumentParser dependency
-│   ├── Models.swift         # CommandHistory, Run, LineRecord, MD5 hashing
+│   ├── Models.swift         # CommandHistory, Run, LineRecord, command/line hashing
 │   ├── HistoryStore.swift   # JSON load/save, pruning, line downsampling
 │   ├── CommandRunner.swift  # Process wrapper, line timestamping, normalization
 │   ├── LineMatcher.swift    # Exact hash → normalized hash fallback matching
@@ -56,11 +56,11 @@ eta <command>              Run a command with progress tracking
 
 - Progress bar writes to the controlling terminal (`/dev/tty`) — wrapped command stdout/stderr stay clean for piping/logging
 - Line matching: exact MD5 hash first, normalized fallback (digits stripped, whitespace collapsed)
-- Lines stored as MD5 hashes (not raw text) for privacy — `Insecure.MD5` is fine here (one-way, collisions harmless)
+- Command keys stored as SHA256 hashes and lines stored as MD5 hashes (not raw text) for privacy — `Insecure.MD5` is fine for line matching (one-way, collisions harmless)
 - ETA: exponential weighted mean (α=0.3), recent runs weighted higher via `EstimateCalculator`
 - Progress bar: smooth time-based (`elapsed / expectedTotal`), updated every 100ms via background timer
 - Atomic clear→write→redraw under lock prevents timer/output races
-- History: JSON files keyed by SHA256 of command string
+- History: JSON files keyed by SHA256 of the command key (`--name` or command string) and storing only that hash
   - macOS: `~/Library/Caches/eta/`
   - Linux: `$XDG_CACHE_HOME/eta/` or `~/.cache/eta/`
 - Failed runs (non-zero exit) are not stored
