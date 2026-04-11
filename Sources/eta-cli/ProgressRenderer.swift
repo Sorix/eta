@@ -1,4 +1,5 @@
 import Foundation
+import ProcessProgress
 #if canImport(Darwin)
 import Darwin
 #elseif canImport(Glibc)
@@ -22,21 +23,37 @@ enum BarColor: String, CaseIterable, Sendable {
     }
 }
 
+enum ProgressBarStyle: Sendable {
+    case layered
+    case solid
+}
+
 /// ANSI progress bar that renders as a sticky line on the controlling terminal.
+///
+/// Layered style uses solid fill for confirmed progress and shaded fill for
+/// predicted-only progress. Solid style fills predicted progress with one glyph.
 final class ProgressRenderer: @unchecked Sendable {
+    private enum BarGlyphs {
+        static let confirmed = "\u{2588}" // █
+        static let predicted = "\u{2592}" // ▒
+        static let empty = " "
+    }
+
     private let lock = NSLock()
     private let terminal: FileHandle?
     private let terminalFD: Int32?
     private let color: BarColor
+    private let style: ProgressBarStyle
     private var lastDrawTime: TimeInterval = 0
     private let minDrawInterval: TimeInterval = 0.2
     private var barVisible = false
 
-    init(color: BarColor = .green) {
+    init(color: BarColor = .green, style: ProgressBarStyle = .layered) {
         let terminal = Self.openTerminal()
         self.terminal = terminal?.handle
         self.terminalFD = terminal?.fileDescriptor
         self.color = color
+        self.style = style
     }
 
     var isEnabled: Bool {
@@ -46,7 +63,7 @@ final class ProgressRenderer: @unchecked Sendable {
     // MARK: - Public API
 
     /// Update the progress bar. Thread-safe, throttled.
-    func update(progress: Double, elapsed: Double, eta: Double) {
+    func update(progress: ProgressFill, elapsed: Double, eta: Double) {
         lock.lock()
         defer { lock.unlock() }
 
@@ -60,7 +77,7 @@ final class ProgressRenderer: @unchecked Sendable {
     }
 
     /// Draw immediately, ignoring throttle. Thread-safe.
-    func forceUpdate(progress: Double, elapsed: Double, eta: Double) {
+    func forceUpdate(progress: ProgressFill, elapsed: Double, eta: Double) {
         lock.lock()
         defer { lock.unlock() }
 
@@ -81,7 +98,7 @@ final class ProgressRenderer: @unchecked Sendable {
 
     /// Atomically: clear bar → write line → redraw bar. Prevents timer races.
     func writeLineAndRedraw(line: String, isStderr: Bool,
-                            progress: Double, elapsed: Double, eta: Double) {
+                            progress: ProgressFill, elapsed: Double, eta: Double) {
         lock.lock()
         defer { lock.unlock() }
 
@@ -124,7 +141,7 @@ final class ProgressRenderer: @unchecked Sendable {
 
     // MARK: - Drawing
 
-    private func draw(progress: Double, elapsed: Double, eta: Double) {
+    private func draw(progress: ProgressFill, elapsed: Double, eta: Double) {
         guard let terminalFD else { return }
         let termWidth = Self.terminalWidth(fileDescriptor: terminalFD)
         let bar = buildBar(
@@ -135,23 +152,37 @@ final class ProgressRenderer: @unchecked Sendable {
         barVisible = true
     }
 
-    private func buildBar(progress: Double, elapsed: Double, eta: Double,
+    private func buildBar(progress: ProgressFill, elapsed: Double, eta: Double,
                           width: Int) -> String {
-        let clampedProgress = max(0, min(1, progress))
+        let confirmedProgress = progress.confirmed
+        let predictedProgress = progress.predicted
 
-        let pct = String(format: "%3.0f%%", clampedProgress * 100)
+        let pct = String(format: "%3.0f%%", predictedProgress * 100)
         let etaStr = eta > 0 ? "ETA \(formatTime(eta))" : "ETA 0s"
         let suffix = "  \(pct)  \(etaStr)"
 
         // Bar width: total width minus brackets, suffix, and padding
         let barWidth = max(10, width - suffix.count - 3)
-        let filled = Int(Double(barWidth) * clampedProgress)
-        let empty = barWidth - filled
+        let predictedWidth = Int(Double(barWidth) * predictedProgress)
 
-        let filledBar = String(repeating: "\u{2588}", count: filled)   // █
-        let emptyBar = String(repeating: "\u{2591}", count: empty)     // ░
+        let fill: String
+        switch style {
+        case .layered:
+            let confirmedWidth = Int(Double(barWidth) * confirmedProgress)
+            let predictedOnlyWidth = max(0, predictedWidth - confirmedWidth)
+            let emptyWidth = max(0, barWidth - confirmedWidth - predictedOnlyWidth)
 
-        return "\(color.ansiCode)[\(filledBar)\(emptyBar)]\(suffix)\u{1B}[0m"
+            fill = String(repeating: BarGlyphs.confirmed, count: confirmedWidth)
+                + String(repeating: BarGlyphs.predicted, count: predictedOnlyWidth)
+                + String(repeating: BarGlyphs.empty, count: emptyWidth)
+        case .solid:
+            let emptyWidth = max(0, barWidth - predictedWidth)
+
+            fill = String(repeating: BarGlyphs.confirmed, count: predictedWidth)
+                + String(repeating: BarGlyphs.empty, count: emptyWidth)
+        }
+
+        return "\(color.ansiCode)[\(fill)]\(suffix)\u{1B}[0m"
     }
 
     // MARK: - Helpers
