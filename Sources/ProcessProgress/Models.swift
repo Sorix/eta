@@ -26,18 +26,28 @@ public struct Run: Codable, Sendable {
 }
 
 public struct CommandHistory: Codable, Sendable {
-    public var commandString: String
-    public var customName: String?
+    public var commandHash: String
     public var runs: [Run]
 
-    public init(commandString: String, customName: String? = nil, runs: [Run]) {
-        self.commandString = commandString
-        self.customName = customName
+    public init(command: String, runs: [Run]) {
+        self.commandHash = CommandFingerprint.hash(command)
+        self.runs = runs
+    }
+
+    public init(commandHash: String, runs: [Run]) {
+        self.commandHash = commandHash
         self.runs = runs
     }
 }
 
 // MARK: - Hashing
+
+public enum CommandFingerprint {
+    public static func hash(_ string: String) -> String {
+        let digest = SHA256.hash(data: Data(string.utf8))
+        return digest.map { String(format: "%02x", $0) }.joined()
+    }
+}
 
 public enum LineHash {
     /// MD5 is marked `Insecure` in CryptoKit because it's vulnerable to deliberate

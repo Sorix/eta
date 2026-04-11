@@ -11,7 +11,7 @@ public struct EstimateCalculator: Sendable {
         guard let history, !history.runs.isEmpty else {
             self.expectedTotal = 0
             self.hasHistory = false
-            self.matcher = LineMatcher(history: CommandHistory(commandString: "", runs: []))
+            self.matcher = LineMatcher(history: CommandHistory(command: "", runs: []))
             self.totalReferenceLines = 0
             return
         }

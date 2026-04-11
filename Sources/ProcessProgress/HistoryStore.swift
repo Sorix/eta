@@ -1,4 +1,3 @@
-import CryptoKit
 import Foundation
 
 public struct HistoryStore: Sendable {
@@ -20,8 +19,7 @@ public struct HistoryStore: Sendable {
     // MARK: - Fingerprinting
 
     static func fingerprint(for command: String) -> String {
-        let digest = SHA256.hash(data: Data(command.utf8))
-        return digest.map { String(format: "%02x", $0) }.joined()
+        CommandFingerprint.hash(command)
     }
 
     // MARK: - Load / Save
@@ -47,7 +45,7 @@ public struct HistoryStore: Sendable {
 
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let data = try JSONEncoder.withISO8601.encode(pruned)
-        try data.write(to: filePath(for: history.commandString), options: .atomic)
+        try data.write(to: filePath(forFingerprint: history.commandHash), options: .atomic)
     }
 
     /// Evenly sample lines across the full run, always keeping first and last.
@@ -81,7 +79,11 @@ public struct HistoryStore: Sendable {
     // MARK: - Private
 
     private func filePath(for command: String) -> URL {
-        directory.appendingPathComponent("\(Self.fingerprint(for: command)).json")
+        filePath(forFingerprint: Self.fingerprint(for: command))
+    }
+
+    private func filePath(forFingerprint fingerprint: String) -> URL {
+        directory.appendingPathComponent("\(fingerprint).json")
     }
 }
 
