@@ -73,47 +73,71 @@ struct ETA: ParsableCommand {
 
         let lastMatchedIndex = LockIsolated<Int>(-1)
         let startTime = Date()
+        let runCount = history?.runs.count ?? 0
+        let isLearning = !calculator.hasHistory
+
+        // Background timer: redraws bar every 100ms so elapsed/ETA stay live
+        let timer: DispatchSourceTimer? = quiet ? nil : {
+            let t = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .userInteractive))
+            t.schedule(deadline: .now() + 0.1, repeating: 0.1)
+            t.setEventHandler { [renderer, calculator, lastMatchedIndex, startTime] in
+                let elapsed = Date().timeIntervalSince(startTime)
+                if isLearning {
+                    renderer.update(progress: 0, elapsed: elapsed, eta: 0,
+                                    runCount: 0, isLearning: true)
+                } else {
+                    let idx = lastMatchedIndex.withLock { $0 }
+                    let progress = idx >= 0 ? calculator.progress(forMatchedIndex: idx) : 0
+                    let eta = calculator.eta(elapsed: elapsed)
+                    renderer.update(progress: progress, elapsed: elapsed, eta: eta,
+                                    runCount: runCount, isLearning: false)
+                }
+            }
+            t.resume()
+            return t
+        }()
 
         let quietFlag = quiet
         let runner = CommandRunner()
         let output = try runner.run(command: command) { line, offset, isStderr in
-            // 1. Clear the progress bar
-            renderer.clearBar()
-
-            // 2. Write the output line
-            if isStderr {
-                FileHandle.standardError.write(Data((line + "\n").utf8))
-            } else {
-                FileHandle.standardOutput.write(Data((line + "\n").utf8))
-            }
-
-            guard !quietFlag else { return }
-
-            // 3. Redraw the progress bar below the new line
-            if calculator.hasHistory {
+            // Update matched progress before drawing
+            if !isLearning {
                 if let idx = calculator.matchLine(line) {
                     lastMatchedIndex.withLock { $0 = max($0, idx) }
                 }
+            }
+
+            let elapsed = Date().timeIntervalSince(startTime)
+
+            if quietFlag {
+                // No bar — just write line directly
+                if isStderr {
+                    FileHandle.standardError.write(Data((line + "\n").utf8))
+                } else {
+                    FileHandle.standardOutput.write(Data((line + "\n").utf8))
+                }
+                return
+            }
+
+            // Atomic: clear bar → write line → redraw bar (race-free with timer)
+            if isLearning {
+                renderer.writeLineAndRedraw(
+                    line: line, isStderr: isStderr,
+                    progress: 0, elapsed: elapsed, eta: 0,
+                    runCount: 0, isLearning: true)
+            } else {
                 let idx = lastMatchedIndex.withLock { $0 }
                 let progress = idx >= 0 ? calculator.progress(forMatchedIndex: idx) : 0
-                let elapsed = Date().timeIntervalSince(startTime)
                 let eta = calculator.eta(elapsed: elapsed)
-                let runCount = history?.runs.count ?? 0
-
-                renderer.forceUpdate(
+                renderer.writeLineAndRedraw(
+                    line: line, isStderr: isStderr,
                     progress: progress, elapsed: elapsed, eta: eta,
-                    runCount: runCount, isLearning: false
-                )
-            } else {
-                let elapsed = Date().timeIntervalSince(startTime)
-                renderer.forceUpdate(
-                    progress: 0, elapsed: elapsed, eta: 0,
-                    runCount: 0, isLearning: true
-                )
+                    runCount: runCount, isLearning: false)
             }
         }
 
-        // Finish progress bar
+        // Stop timer and finish
+        timer?.cancel()
         if !quiet {
             renderer.finish(
                 elapsed: output.totalDuration,
