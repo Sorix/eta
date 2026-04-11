@@ -53,6 +53,33 @@ final class ProgressRenderer: @unchecked Sendable {
         barVisible = false
     }
 
+    /// Atomically: clear bar → write line → redraw bar. Prevents timer races.
+    func writeLineAndRedraw(line: String, isStderr: Bool,
+                            progress: Double, elapsed: Double, eta: Double,
+                            runCount: Int, isLearning: Bool) {
+        lock.lock()
+        defer { lock.unlock() }
+
+        // Clear current bar
+        if isTTY, barVisible {
+            writeStderr("\u{1B}[2K\r")
+            barVisible = false
+        }
+
+        // Write the output line
+        if isStderr {
+            FileHandle.standardError.write(Data((line + "\n").utf8))
+        } else {
+            FileHandle.standardOutput.write(Data((line + "\n").utf8))
+        }
+
+        // Redraw bar
+        guard isTTY else { return }
+        lastDrawTime = ProcessInfo.processInfo.systemUptime
+        draw(progress: progress, elapsed: elapsed, eta: eta,
+             runCount: runCount, isLearning: isLearning)
+    }
+
     /// Show completion summary and clear the bar.
     func finish(elapsed: Double, expected: Double, hasHistory: Bool) {
         lock.lock()
