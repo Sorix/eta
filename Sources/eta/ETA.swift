@@ -45,16 +45,152 @@ struct ETA: ParsableCommand {
     }
 
     func run() throws {
+        let store = HistoryStore()
+
         if list {
-            print("TODO: list learned commands")
+            try runList(store: store)
         } else if let clear {
-            print("TODO: clear history for '\(clear)'")
+            try store.clear(command: clear)
+            printStderr("Cleared history for '\(clear)'.")
         } else if clearAll {
-            print("TODO: clear all history")
+            try store.clearAll()
+            printStderr("Cleared all history.")
         } else if let stats {
-            print("TODO: show stats for '\(stats)'")
+            try runStats(store: store, command: stats)
         } else if let command {
-            print("TODO: run '\(command)'")
+            try runCommand(store: store, command: command)
+        }
+    }
+
+    // MARK: - Run Command
+
+    private func runCommand(store: HistoryStore, command: String) throws {
+        let key = name ?? command
+        let history = try store.load(command: key)
+        let calculator = ETACalculator(history: history)
+        let renderer = ProgressRenderer()
+        let maxRuns = runs ?? 10
+
+        let lastMatchedIndex = LockIsolated<Int>(-1)
+        let startTime = Date()
+
+        let runner = CommandRunner()
+        let output = try runner.run(command: command) { line, offset, _ in
+            guard !quiet else { return }
+
+            if calculator.hasHistory {
+                if let idx = calculator.matchLine(line) {
+                    lastMatchedIndex.withLock { $0 = max($0, idx) }
+                }
+                let idx = lastMatchedIndex.withLock { $0 }
+                let progress = idx >= 0 ? calculator.progress(forMatchedIndex: idx) : 0
+                let elapsed = Date().timeIntervalSince(startTime)
+                let eta = calculator.eta(elapsed: elapsed)
+                let runCount = history?.runs.count ?? 0
+
+                renderer.clearBar()
+                renderer.forceUpdate(
+                    progress: progress, elapsed: elapsed, eta: eta,
+                    runCount: runCount, isLearning: false
+                )
+            } else {
+                let elapsed = Date().timeIntervalSince(startTime)
+                renderer.clearBar()
+                renderer.forceUpdate(
+                    progress: 0, elapsed: elapsed, eta: 0,
+                    runCount: 0, isLearning: true
+                )
+            }
+        }
+
+        // Finish progress bar
+        if !quiet {
+            renderer.finish(
+                elapsed: output.totalDuration,
+                expected: calculator.expectedTotal,
+                hasHistory: calculator.hasHistory
+            )
+        }
+
+        // Save run
+        var hist = history ?? CommandHistory(commandString: key, runs: [])
+        hist.commandString = key
+        if name != nil { hist.customName = name }
+        hist.runs.append(Run(
+            date: Date(),
+            totalDuration: output.totalDuration,
+            complete: output.exitCode == 0,
+            lines: output.lines
+        ))
+        try store.save(hist, maxRuns: maxRuns)
+
+        // Propagate exit code
+        if output.exitCode != 0 {
+            throw ExitCode(output.exitCode)
+        }
+    }
+
+    // MARK: - List
+
+    private func runList(store: HistoryStore) throws {
+        let histories = try store.listAll()
+        guard !histories.isEmpty else {
+            printStderr("No learned commands yet.")
+            return
+        }
+
+        printStderr("\("COMMAND".padding(toLength: 40, withPad: " ", startingAt: 0))  \("RUNS".padding(toLength: 5, withPad: " ", startingAt: 0))  AVG TIME")
+        printStderr(String(repeating: "─", count: 60))
+
+        for hist in histories {
+            let label = hist.customName ?? hist.commandString
+            let truncated = label.count > 38 ? String(label.prefix(37)) + "…" : label
+            let avgDuration = hist.runs.isEmpty ? 0 :
+                hist.runs.map(\.totalDuration).reduce(0, +) / Double(hist.runs.count)
+            let col1 = truncated.padding(toLength: 40, withPad: " ", startingAt: 0)
+            let col2 = String(hist.runs.count).padding(toLength: 5, withPad: " ", startingAt: 0)
+            printStderr("\(col1)  \(col2)  \(formatTime(avgDuration))")
+        }
+    }
+
+    // MARK: - Stats
+
+    private func runStats(store: HistoryStore, command: String) throws {
+        guard let history = try store.load(command: command) else {
+            printStderr("No history for '\(command)'.")
+            throw ExitCode.failure
+        }
+
+        guard let lastRun = history.runs.last else {
+            printStderr("No runs recorded.")
+            throw ExitCode.failure
+        }
+
+        printStderr("Stats for '\(history.customName ?? command)' (\(history.runs.count) runs)")
+        printStderr(String(format: "Last run: %.1fs (%@)", lastRun.totalDuration, lastRun.complete ? "complete" : "incomplete"))
+        printStderr("")
+        printStderr("\("OFFSET".padding(toLength: 8, withPad: " ", startingAt: 0))  LINE")
+        printStderr(String(repeating: "─", count: 60))
+
+        for line in lastRun.lines {
+            let offset = String(format: "%7.1fs", line.offsetSeconds)
+            printStderr("\(offset)  \(line.text)")
+        }
+    }
+
+    // MARK: - Helpers
+
+    private func printStderr(_ message: String) {
+        FileHandle.standardError.write(Data((message + "\n").utf8))
+    }
+
+    private func formatTime(_ seconds: Double) -> String {
+        if seconds < 60 {
+            return String(format: "%.1fs", seconds)
+        } else {
+            let m = Int(seconds) / 60
+            let s = seconds - Double(m * 60)
+            return String(format: "%dm%04.1fs", m, s)
         }
     }
 }
