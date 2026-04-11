@@ -29,6 +29,9 @@ struct ETA: ParsableCommand {
     @Option(name: .long, help: "Number of recent runs to use for averaging (default: 10).")
     var runs: Int?
 
+    @Option(name: .long, help: "Progress bar color: \(BarColor.allCases.map(\.rawValue).joined(separator: ", ")) (default: green).")
+    var color: BarColor = .green
+
     @Argument(help: "The command to run.")
     var command: String?
 
@@ -68,7 +71,7 @@ struct ETA: ParsableCommand {
         let key = name ?? command
         let history = try store.load(command: key)
         let calculator = ETACalculator(history: history)
-        let renderer = ProgressRenderer()
+        let renderer = ProgressRenderer(color: color)
         let maxRuns = runs ?? 10
 
         let startTime = Date()

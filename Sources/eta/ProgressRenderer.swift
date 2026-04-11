@@ -5,16 +5,37 @@ import Darwin
 import Glibc
 #endif
 
+import ArgumentParser
+
+/// ANSI color names for the --color flag.
+enum BarColor: String, CaseIterable, Sendable, ExpressibleByArgument {
+    case green, yellow, red, blue, magenta, cyan, white
+
+    var ansiCode: String {
+        switch self {
+        case .green:   return "\u{1B}[32m"
+        case .yellow:  return "\u{1B}[33m"
+        case .red:     return "\u{1B}[31m"
+        case .blue:    return "\u{1B}[34m"
+        case .magenta: return "\u{1B}[35m"
+        case .cyan:    return "\u{1B}[36m"
+        case .white:   return "\u{1B}[37m"
+        }
+    }
+}
+
 /// ANSI progress bar that renders as a sticky line on stderr.
 final class ProgressRenderer: @unchecked Sendable {
     private let lock = NSLock()
     private let isTTY: Bool
+    private let color: BarColor
     private var lastDrawTime: TimeInterval = 0
     private let minDrawInterval: TimeInterval = 1.0 / 15.0  // ~15 fps
     private var barVisible = false
 
-    init() {
+    init(color: BarColor = .green) {
         self.isTTY = isatty(STDERR_FILENO) != 0
+        self.color = color
     }
 
     // MARK: - Public API
@@ -136,17 +157,7 @@ final class ProgressRenderer: @unchecked Sendable {
         let filledBar = String(repeating: "\u{2588}", count: filled)   // █
         let emptyBar = String(repeating: "\u{2591}", count: empty)     // ░
 
-        // Color: green if > 50%, yellow if > 25%, red otherwise
-        let color: String
-        if clampedProgress > 0.5 {
-            color = "\u{1B}[32m"  // green
-        } else if clampedProgress > 0.25 {
-            color = "\u{1B}[33m"  // yellow
-        } else {
-            color = "\u{1B}[31m"  // red
-        }
-
-        return "\(color)[\(filledBar)\(emptyBar)]\(suffix)\u{1B}[0m"
+        return "\(color.ansiCode)[\(filledBar)\(emptyBar)]\(suffix)\u{1B}[0m"
     }
 
     // MARK: - Helpers
