@@ -195,12 +195,14 @@ struct ETA: ParsableCommand {
         printStderr("Stats for '\(history.customName ?? command)' (\(history.runs.count) runs)")
         printStderr(String(format: "Last run: %.1fs (%@)", lastRun.totalDuration, lastRun.complete ? "complete" : "incomplete"))
         printStderr("")
-        printStderr("\("OFFSET".padding(toLength: 8, withPad: " ", startingAt: 0))  LINE")
-        printStderr(String(repeating: "─", count: 60))
+        printStderr("\("OFFSET".padding(toLength: 8, withPad: " ", startingAt: 0))  \("HASH".padding(toLength: 18, withPad: " ", startingAt: 0))  NORMALIZED")
+        printStderr(String(repeating: "─", count: 52))
 
         for line in lastRun.lines {
             let offset = String(format: "%7.1fs", line.offsetSeconds)
-            printStderr("\(offset)  \(line.text)")
+            let hash = String(format: "%016llx", line.textHash)
+            let norm = String(format: "%016llx", line.normalizedHash)
+            printStderr("\(offset)  \(hash)  \(norm)")
         }
     }
 
