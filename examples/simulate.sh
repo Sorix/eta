@@ -1,15 +1,28 @@
 #!/bin/bash
-# Simulates a build-like process with repeatable output and varied timing.
+# Fake build simulation for testing eta progress rendering.
+# It does not build, compile, link, or test anything real.
 #
-# To see confirmed vs predicted progress:
-#   ETA_SIM_PROFILE=stable swift run eta --name eta-sim './examples/simulate.sh'
-#   ETA_SIM_PROFILE=random swift run eta --name eta-sim './examples/simulate.sh'
+# Copy/paste examples:
+#   ETA_SIM_PROFILE=stable swift run eta './examples/simulate.sh'
+#   ETA_SIM_PROFILE=random swift run eta './examples/simulate.sh'
+#   ETA_SIM_PROFILE=slow swift run eta './examples/simulate.sh'
+#   ETA_SIM_PROFILE=random swift run eta --solid './examples/simulate.sh'
 #
 # Profiles:
 #   stable  fixed baseline sleeps
 #   fast    about 55% of baseline sleeps
 #   slow    about 175% of baseline sleeps
 #   random  random sleeps between ETA_SIM_MIN_PERCENT and ETA_SIM_MAX_PERCENT
+
+print_intro() {
+    echo "Fake eta simulation: no real build, compile, link, or tests are running."
+    echo "Copy/paste examples:"
+    echo "  ETA_SIM_PROFILE=stable swift run eta './examples/simulate.sh'"
+    echo "  ETA_SIM_PROFILE=random swift run eta './examples/simulate.sh'"
+    echo "  ETA_SIM_PROFILE=slow swift run eta './examples/simulate.sh'"
+    echo "  ETA_SIM_PROFILE=random swift run eta --solid './examples/simulate.sh'"
+    echo
+}
 
 sleep_step() {
     local base="$1"
@@ -43,6 +56,8 @@ sleep_step() {
     seconds="$(awk -v base="$base" -v factor="$factor" 'BEGIN { printf "%.2f", base * factor / 100 }')"
     sleep "$seconds"
 }
+
+print_intro
 
 echo "==> Configuring project..."
 sleep_step 1.2
