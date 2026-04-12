@@ -47,6 +47,7 @@ final class ProgressRenderer: ProgressRendering, @unchecked Sendable {
     private var lastDrawTime: TimeInterval = 0
     private let minDrawInterval: TimeInterval = 0.2
     private var barVisible = false
+    private var cursorHidden = false
     private var outputContainsPartialLine = false
 
     init(color: BarColor = .green, style: ProgressBarStyle = .layered) {
@@ -63,7 +64,7 @@ final class ProgressRenderer: ProgressRendering, @unchecked Sendable {
 
     // MARK: - Rendering API
 
-    func update(progress: ProgressFill, remainingTime: Double) {
+    func update(progress: ProgressFill, remainingTime: Double?, elapsedTime: Double) {
         lock.lock()
         defer { lock.unlock() }
 
@@ -73,16 +74,16 @@ final class ProgressRenderer: ProgressRendering, @unchecked Sendable {
         guard now - lastDrawTime >= minDrawInterval else { return }
         lastDrawTime = now
 
-        draw(progress: progress, remainingTime: remainingTime)
+        draw(progress: progress, remainingTime: remainingTime, elapsedTime: elapsedTime)
     }
 
-    func forceUpdate(progress: ProgressFill, remainingTime: Double) {
+    func forceUpdate(progress: ProgressFill, remainingTime: Double?, elapsedTime: Double) {
         lock.lock()
         defer { lock.unlock() }
 
         guard terminal != nil else { return }
         lastDrawTime = ProcessInfo.processInfo.systemUptime
-        draw(progress: progress, remainingTime: remainingTime)
+        draw(progress: progress, remainingTime: remainingTime, elapsedTime: elapsedTime)
     }
 
     /// Keep command output and progress redraws from interleaving on the terminal.
@@ -90,7 +91,8 @@ final class ProgressRenderer: ProgressRendering, @unchecked Sendable {
         rawOutput: Data,
         stream: CommandOutputStream,
         progress: ProgressFill,
-        remainingTime: Double,
+        remainingTime: Double?,
+        elapsedTime: Double,
         containsPartialLine: Bool
     ) {
         lock.lock()
@@ -106,16 +108,19 @@ final class ProgressRenderer: ProgressRendering, @unchecked Sendable {
 
         guard terminal != nil, !outputContainsPartialLine else { return }
         lastDrawTime = ProcessInfo.processInfo.systemUptime
-        draw(progress: progress, remainingTime: remainingTime)
+        draw(progress: progress, remainingTime: remainingTime, elapsedTime: elapsedTime)
     }
 
     func cleanup() {
         lock.lock()
         defer { lock.unlock() }
 
-        guard terminal != nil, barVisible else { return }
-        writeTerminal("\u{1B}[2K\r")
-        barVisible = false
+        guard terminal != nil else { return }
+        if barVisible {
+            writeTerminal("\u{1B}[2K\r")
+            barVisible = false
+        }
+        showCursorIfNeeded()
     }
 
     func finish(elapsed: Double, expectedDuration: Double) {
@@ -128,33 +133,51 @@ final class ProgressRenderer: ProgressRendering, @unchecked Sendable {
             writeTerminal("\u{1B}[2K\r")
             barVisible = false
         }
+        showCursorIfNeeded()
         if outputContainsPartialLine {
             writeTerminal("\n")
             outputContainsPartialLine = false
         }
 
-        let delta = elapsed - expectedDuration
-        let sign = delta >= 0 ? "+" : ""
-        writeTerminal("\u{1B}[32mDone in \(formatTime(elapsed))  (expected \(formatTime(expectedDuration)), delta \(sign)\(formatTime(delta)))\u{1B}[0m\n")
+        if expectedDuration > 0 {
+            let delta = elapsed - expectedDuration
+            let sign = delta >= 0 ? "+" : ""
+            writeTerminal("\u{1B}[32mDone in \(formatTime(elapsed))  (expected \(formatTime(expectedDuration)), delta \(sign)\(formatTime(delta)))\u{1B}[0m\n")
+        } else {
+            writeTerminal("\u{1B}[32mDone in \(formatTime(elapsed))\u{1B}[0m\n")
+        }
     }
 
     // MARK: - Drawing
 
-    private func draw(progress: ProgressFill, remainingTime: Double) {
+    private func draw(progress: ProgressFill, remainingTime: Double?, elapsedTime: Double) {
         guard let terminalFD else { return }
         let termWidth = Self.terminalWidth(fileDescriptor: terminalFD)
         let bar = buildBar(
             progress: progress,
             remainingTime: remainingTime,
+            elapsedTime: elapsedTime,
             width: termWidth
         )
+        hideCursorIfNeeded()
         writeTerminal("\u{1B}[2K\r\(bar)")
         barVisible = true
     }
 
-    private func buildBar(progress: ProgressFill, remainingTime: Double, width: Int) -> String {
+    private func buildBar(
+        progress: ProgressFill,
+        remainingTime: Double?,
+        elapsedTime: Double,
+        width: Int
+    ) -> String {
         let confirmedProgress = progress.confirmed
         let predictedProgress = progress.predicted
+
+        guard let remainingTime else {
+            let elapsedString = "Elapsed \(formatTime(elapsedTime))"
+            let padding = String(repeating: " ", count: max(0, width - elapsedString.count))
+            return "\(color.ansiCode)\(elapsedString)\(padding)\u{1B}[0m"
+        }
 
         let pct = String(format: "%3.0f%%", predictedProgress * 100)
         let remainingTimeString = remainingTime > 0 ? "ETA \(formatTime(remainingTime))" : "ETA 0s"
@@ -187,6 +210,18 @@ final class ProgressRenderer: ProgressRendering, @unchecked Sendable {
 
     private func writeTerminal(_ string: String) {
         terminal?.write(Data(string.utf8))
+    }
+
+    private func hideCursorIfNeeded() {
+        guard !cursorHidden else { return }
+        writeTerminal("\u{1B}[?25l")
+        cursorHidden = true
+    }
+
+    private func showCursorIfNeeded() {
+        guard cursorHidden else { return }
+        writeTerminal("\u{1B}[?25h")
+        cursorHidden = false
     }
 
     private func writeCommandOutput(_ data: Data, to stream: CommandOutputStream) {

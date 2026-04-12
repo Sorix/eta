@@ -97,27 +97,36 @@ final class FakeCommandRunner: CommandRunning, @unchecked Sendable {
 final class FakeRenderer: ProgressRendering, @unchecked Sendable {
     var isEnabled: Bool
     var events: [String] = []
+    var remainingTimes: [Double?] = []
+    var elapsedTimes: [Double] = []
 
     init(isEnabled: Bool = true) {
         self.isEnabled = isEnabled
     }
 
-    func update(progress: ProgressFill, remainingTime: Double) {
+    func update(progress: ProgressFill, remainingTime: Double?, elapsedTime: Double) {
         events.append("update")
+        remainingTimes.append(remainingTime)
+        elapsedTimes.append(elapsedTime)
     }
 
-    func forceUpdate(progress: ProgressFill, remainingTime: Double) {
+    func forceUpdate(progress: ProgressFill, remainingTime: Double?, elapsedTime: Double) {
         events.append("forceUpdate")
+        remainingTimes.append(remainingTime)
+        elapsedTimes.append(elapsedTime)
     }
 
     func writeOutputAndRedraw(
         rawOutput: Data,
         stream: CommandOutputStream,
         progress: ProgressFill,
-        remainingTime: Double,
+        remainingTime: Double?,
+        elapsedTime: Double,
         containsPartialLine: Bool
     ) {
         events.append("writeOutputAndRedraw")
+        remainingTimes.append(remainingTime)
+        elapsedTimes.append(elapsedTime)
     }
 
     func cleanup() {
