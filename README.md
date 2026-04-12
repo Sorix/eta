@@ -1,18 +1,6 @@
-<div align="center">
-
-# eta
-
-**Know when your commands will finish.**
+# Estimation for repeating commands
 
 A progress bar for any command — learns from history, predicts the rest.
-
-![Swift 6.0+](https://img.shields.io/badge/Swift-6.0+-F05138?logo=swift&logoColor=white)
-![macOS 13+](https://img.shields.io/badge/macOS-13+-000?logo=apple&logoColor=white)
-![Linux](https://img.shields.io/badge/Linux-supported-FCC624?logo=linux&logoColor=black)
-
-</div>
-
-&nbsp;
 
 ```
 $ eta 'make build'
@@ -24,8 +12,6 @@ $ eta 'make build'
 [3/8] Compiling lexer.c
 [████████████████████▒▒▒▒▒▒▒▒▒                       ]  44%  ETA 32s
 ```
-
-&nbsp;
 
 ## How It Works
 
@@ -59,8 +45,6 @@ The progress bar has two layers: **solid fill** for lines already matched agains
 
 ## Features
 
-**Zero configuration** — wrap any command. `eta` builds its own model from scratch.
-
 **Pipe-safe** — the progress bar renders on `/dev/tty`, completely separate from stdout/stderr. Your command's output stays clean for piping, redirecting, or logging. Nothing changes for downstream tools.
 
 **Privacy-first storage** — `eta` keeps only cryptographic hashes: SHA-256 for command keys, MD5 for output lines. History files cannot be reversed into original content.
@@ -70,20 +54,19 @@ The progress bar has two layers: **solid fill** for lines already matched agains
 **Adaptive estimates** — ETA uses an exponential weighted mean (alpha=0.3) so recent runs matter more than old ones. If your build gets faster or slower over time, `eta` adjusts.
 
 **Self-maintaining history** — stale history files are automatically pruned after 90 days. Each run is downsampled to 5,000 lines max. Old runs are rotated out (default: keep last 10).
+
 ## Install
+Software is in alpha-test, releases will be published later.
 
 ### From source
 
-Requires Swift 6.0+ toolchain.
-
 ```sh
-git clone <repo-url>
+git clone https://github.com/Sorix/eta
 cd eta
 make install  # builds release and installs to /usr/local/bin
 ```
 
 To install elsewhere:
-
 ```sh
 make install PREFIX=~/.local
 ```
