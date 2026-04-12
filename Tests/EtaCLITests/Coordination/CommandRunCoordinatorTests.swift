@@ -54,9 +54,9 @@ struct CommandRunCoordinatorTests {
 
         #expect(didThrow)
         #expect(harness.historyStore.saved.isEmpty)
-        #expect(harness.renderLoop.cancelCount == 1)
-        #expect(harness.signalTrap.cancelCount == 1)
-        #expect(harness.renderer.events == ["forceUpdate", "cleanup"])
+        #expect(harness.renderLoop.cancelCount == 0)
+        #expect(harness.signalTrap.cancelCount == 0)
+        #expect(harness.renderer.events == ["writeFirstRunHeader"])
     }
 
     @Test("quiet mode bypasses rendering and still records history")
@@ -90,29 +90,17 @@ struct CommandRunCoordinatorTests {
         #expect(harness.historyStore.saved.count == 1)
     }
 
-    @Test("no history renders elapsed status without ETA")
-    func noHistoryRendersElapsedStatusWithoutETA() throws {
+    @Test("no history prints first-run header without progress bar")
+    func noHistoryPrintsFirstRunHeader() throws {
         let harness = CoordinatorHarness()
-        harness.commandRunner.chunks = [
-            CommandOutputChunk(
-                rawOutput: Data("Done\n".utf8),
-                lineRecords: [makeLine("Done", offset: 1)],
-                stream: .standardOutput,
-                containsPartialLine: false
-            )
-        ]
         harness.commandRunner.output = CommandOutput(lineRecords: [makeLine("Done")], totalDuration: 1, exitCode: 0)
 
         try harness.coordinator.run(harness.request())
 
-        #expect(harness.commandRunner.receivedOutputHandler)
-        #expect(harness.renderer.events == ["forceUpdate", "writeOutputAndRedraw", "finish"])
-        #expect(harness.renderer.remainingTimes == [nil, nil])
-        #expect(harness.renderer.elapsedTimes == [0, 0])
-        #expect(harness.renderLoopCreateCount == 1)
-        #expect(harness.signalTrapCreateCount == 1)
-        #expect(harness.renderLoop.cancelCount == 1)
-        #expect(harness.signalTrap.cancelCount == 1)
+        #expect(!harness.commandRunner.receivedOutputHandler)
+        #expect(harness.renderer.events == ["writeFirstRunHeader"])
+        #expect(harness.renderLoopCreateCount == 0)
+        #expect(harness.signalTrapCreateCount == 0)
     }
 
     @Test("existing history enables render loop and rendering lifecycle")

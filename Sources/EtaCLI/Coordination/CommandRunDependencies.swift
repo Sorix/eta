@@ -38,6 +38,7 @@ extension CommandRunner: CommandRunning {}
 protocol ProgressRendering: AnyObject, Sendable {
     var isEnabled: Bool { get }
 
+    func writeFirstRunHeader()
     func update(progress: ProgressFill, remainingTime: Double?, elapsedTime: Double)
     func forceUpdate(progress: ProgressFill, remainingTime: Double?, elapsedTime: Double)
     func writeOutputAndRedraw(

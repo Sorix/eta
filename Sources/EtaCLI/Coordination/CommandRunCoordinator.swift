@@ -45,7 +45,13 @@ struct CommandRunCoordinator {
         let history = try historyStore.load(for: request.commandKey)
         let progressEstimator = TimelineProgressEstimator(history: history)
         let renderer = rendererFactory(request.color, request.progressBarStyle)
-        let shouldRenderProgress = !request.quiet && renderer.isEnabled
+        let hasHistory = progressEstimator.hasHistory
+        let shouldRenderProgress = !request.quiet && renderer.isEnabled && hasHistory
+
+        if !request.quiet && renderer.isEnabled && !hasHistory {
+            renderer.writeFirstRunHeader()
+        }
+
         let startTime = dateProvider()
         var renderingSession = RenderingSession(
             renderer: renderer,
