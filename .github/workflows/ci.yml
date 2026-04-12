@@ -1,10 +1,11 @@
 name: CI
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches:
-      - main
+      - master
 
 permissions:
   contents: read
@@ -14,7 +15,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  SWIFT_VERSION: "6.3"
+  SWIFT_VERSION: "6.0"
 
 jobs:
   unit:
@@ -43,7 +44,7 @@ jobs:
       - name: Run Swift tests
         run: swift test --parallel
 
-  release-build:
+  build:
     name: Release Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
@@ -67,31 +68,23 @@ jobs:
         if: runner.os == 'Linux'
         run: scripts/ci/install-xcbeautify.sh
 
-      - name: Verify tools
-        run: |
-          swift --version
-          xcbeautify --version
-
       - name: Build release
         run: |
           set -o pipefail
           swift build -c release 2>&1 | xcbeautify --is-ci
 
-      - name: Package eta binary
-        run: tar -czf "eta-${{ matrix.os }}.tar.gz" -C .build/release eta
-
       - name: Upload eta binary
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: eta-${{ matrix.os }}
-          path: eta-${{ matrix.os }}.tar.gz
+          path: .build/release/eta
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 1
 
   simulate:
     name: Example simulate.sh (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    needs: release-build
+    needs: build
     timeout-minutes: 5
     strategy:
       fail-fast: false
@@ -108,19 +101,15 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: eta-${{ matrix.os }}
-          path: artifacts
-
-      - name: Extract eta binary
-        run: |
-          tar -xzf "artifacts/eta-${{ matrix.os }}.tar.gz" -C artifacts
-          chmod +x artifacts/eta
 
       - name: Run simulate.sh real test
-        run: scripts/ci/test-simulate.sh artifacts/eta
+        run: |
+          chmod +x eta
+          scripts/ci/test-simulate.sh ./eta
 
       - name: Upload simulate diagnostics
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: simulate-diagnostics-${{ matrix.os }}
           path: ${{ runner.temp }}/eta-ci/simulate
@@ -130,7 +119,7 @@ jobs:
   stdio:
     name: Stdout/Stderr Logs (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    needs: release-build
+    needs: build
     timeout-minutes: 5
     strategy:
       fail-fast: false
@@ -147,19 +136,15 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: eta-${{ matrix.os }}
-          path: artifacts
-
-      - name: Extract eta binary
-        run: |
-          tar -xzf "artifacts/eta-${{ matrix.os }}.tar.gz" -C artifacts
-          chmod +x artifacts/eta
 
       - name: Run stdout/stderr cleanliness test
-        run: scripts/ci/test-stdio-clean.sh artifacts/eta
+        run: |
+          chmod +x eta
+          scripts/ci/test-stdio-clean.sh ./eta
 
       - name: Upload stdio diagnostics
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: stdio-diagnostics-${{ matrix.os }}
           path: ${{ runner.temp }}/eta-ci/stdio
@@ -169,7 +154,7 @@ jobs:
   performance:
     name: Large Output Performance (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    needs: release-build
+    needs: build
     timeout-minutes: 5
     strategy:
       fail-fast: false
@@ -186,19 +171,15 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: eta-${{ matrix.os }}
-          path: artifacts
-
-      - name: Extract eta binary
-        run: |
-          tar -xzf "artifacts/eta-${{ matrix.os }}.tar.gz" -C artifacts
-          chmod +x artifacts/eta
 
       - name: Run large-output performance test
-        run: scripts/ci/test-large-output.sh artifacts/eta
+        run: |
+          chmod +x eta
+          scripts/ci/test-large-output.sh ./eta
 
       - name: Upload performance diagnostics
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: performance-diagnostics-${{ matrix.os }}
           path: ${{ runner.temp }}/eta-ci/large-output
