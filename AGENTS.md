@@ -9,6 +9,7 @@ swift build 2>&1 | xcbeautify --is-ci        # debug build
 swift build -c release 2>&1 | xcbeautify --is-ci  # release build
 swift test --parallel                # Swift Testing unit/integration tests
 scripts/ci/test-simulate.sh .build/release/eta      # real simulate.sh test
+scripts/ci/test-command-key-resolution.sh .build/release/eta  # command key integration test
 scripts/ci/test-large-output.sh .build/release/eta  # large-output performance test
 scripts/ci/test-stdio-clean.sh .build/release/eta   # stdout/stderr cleanliness test
 swift run eta 'your command here'    # run directly
@@ -18,7 +19,7 @@ sudo make install                    # system install
 
 Always pipe `swift build` output through `xcbeautify` for readable build output.
 The Makefile intentionally runs raw `swift build -c release` so installing from source does not require `xcbeautify`.
-CI runs release build, Swift tests, the real simulate example, the large-output performance test, and stdout/stderr cleanliness checks on Linux and macOS pull request jobs. The macOS image uses preinstalled `xcbeautify`; Linux installs it in CI.
+CI runs release build, Swift tests, the real simulate example, command key resolution integration checks, the large-output performance test, and stdout/stderr cleanliness checks on Linux and macOS pull request jobs. The macOS image uses preinstalled `xcbeautify`; Linux installs it in CI.
 
 ## Project Structure
 

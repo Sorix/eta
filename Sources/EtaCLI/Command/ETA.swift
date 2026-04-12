@@ -59,12 +59,15 @@ public struct ETA: ParsableCommand {
     ///
     /// - Throws: Errors from history operations, command execution, or non-zero wrapped command exits.
     public func run() throws {
-        try run(historyStore: Self.makeHistoryStore())
+        try run(historyStore: Self.makeHistoryStore(), commandKeyResolver: CommandKeyResolver.live)
     }
 
-    func run(historyStore store: any HistoryStoring) throws {
+    func run(
+        historyStore store: any HistoryStoring,
+        commandKeyResolver: any CommandKeyResolving = CommandKeyResolver.live
+    ) throws {
         if let clear {
-            try store.clear(for: Self.resolvedCommandKey(clear))
+            try store.clear(for: commandKeyResolver.resolvedKey(for: clear))
             Self.printStdout("Cleared history for '\(clear)'.")
         } else if clearAll {
             try store.clearAll()
@@ -76,7 +79,7 @@ public struct ETA: ParsableCommand {
             )
             try coordinator.run(CommandRunRequest(
                 command: command,
-                commandKey: name ?? Self.resolvedCommandKey(command),
+                commandKey: name ?? commandKeyResolver.resolvedKey(for: command),
                 maximumRunCount: runs ?? 10,
                 quiet: quiet,
                 color: color,
@@ -90,71 +93,6 @@ public struct ETA: ParsableCommand {
             return HistoryStore(directory: URL(fileURLWithPath: cacheDirectory, isDirectory: true))
         }
         return HistoryStore(appIdentifier: "eta")
-    }
-
-    /// Builds a stable command key that distinguishes the same executable
-    /// across different projects while sharing history for the same script
-    /// invoked from different directories.
-    ///
-    /// - **Path-based invocations** (`./test.sh`, `../build.sh`, `/usr/bin/make arg`)
-    ///   are resolved via C `realpath()` to a canonical absolute path.
-    ///   The script path itself identifies the work — no cwd needed.
-    /// - **Bare-name invocations** (`make`, `swift build`, `cargo test`)
-    ///   resolve to the same executable everywhere, so the working directory
-    ///   is prepended to distinguish projects.
-    /// - Shell aliases, functions, and builtins won't resolve — the working
-    ///   directory is prepended as for bare names. This is correct because
-    ///   `eta` runs commands via `/bin/sh -c` where interactive aliases
-    ///   aren't loaded, so unresolvable names behave like bare commands.
-    static func resolvedCommandKey(_ command: String) -> String {
-        let trimmed = command.trimmingCharacters(in: .whitespaces)
-        let firstSpace = trimmed.firstIndex(of: " ")
-        let executable = firstSpace.map { String(trimmed[..<$0]) } ?? trimmed
-        let rest = firstSpace.map { String(trimmed[$0...]) } ?? ""
-
-        // Path-based: resolve to canonical path, no cwd needed.
-        if executable.contains("/"), let resolved = realpathOrNil(executable) {
-            return resolved + rest
-        }
-
-        // Bare name: prepend cwd so different projects get separate history.
-        let cwd = FileManager.default.currentDirectoryPath
-        if let resolved = whichPath(executable) {
-            return "\(cwd)\n\(resolved)\(rest)"
-        }
-
-        // Unresolvable: treat like a bare name with cwd.
-        return "\(cwd)\n\(command)"
-    }
-
-    /// Resolves a file path to its canonical absolute path via C `realpath()`.
-    /// Returns `nil` when the file does not exist.
-    private static func realpathOrNil(_ path: String) -> String? {
-        guard let resolved = realpath(path, nil) else { return nil }
-        defer { free(resolved) }
-        return String(cString: resolved)
-    }
-
-    /// Runs `which` to find the absolute path for a bare executable name.
-    /// Returns `nil` when the executable is not found on PATH.
-    private static func whichPath(_ executable: String) -> String? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/which")
-        process.arguments = [executable]
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = FileHandle.nullDevice
-        do {
-            try process.run()
-            process.waitUntilExit()
-        } catch {
-            return nil
-        }
-        guard process.terminationStatus == 0 else { return nil }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        let path = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let path, !path.isEmpty else { return nil }
-        return path
     }
 
     private static func printStdout(_ message: String) {
