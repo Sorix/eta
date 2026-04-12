@@ -29,9 +29,13 @@ $ eta 'make build'
 
 ## How It Works
 
-1. **First run** — `eta` silently records the output timeline (which lines appeared when)
-2. **Second run onward** — it matches live output against history to show a progress bar with ETA
-3. **Every run** — the model refines itself, weighting recent runs higher for better predictions
+`eta` works by remembering what your command printed last time and when each line appeared.
+
+1. **First run** — `eta` hashes every output line and records its timestamp relative to the start. This builds a timeline: which line appeared at what point during execution.
+2. **Next run** — as the command runs again, `eta` hashes each new output line and matches it against the stored timeline. When it sees a line that previously appeared at the 30% mark, it knows you're at 30%. Combined with the expected total duration, it calculates a live ETA.
+3. **Every run** — the model refines itself, weighting recent runs higher for better predictions.
+
+This approach means `eta` is designed for **commands you run repeatedly** — anything with recognizable, structured output that follows a similar pattern each time.
 
 The progress bar has two layers: **solid fill** for lines already matched against history, and **shaded fill** for timer-based prediction ahead of the last confirmed point. You always know what's verified versus estimated.
 
@@ -39,6 +43,19 @@ The progress bar has two layers: **solid fill** for lines already matched agains
 [██████████████████████▒▒▒▒▒▒▒▒▒▒           ]  64%  ETA 18s
  ▲ confirmed from output ▲ predicted         ▲ remaining
 ```
+
+## Use Cases
+
+`eta` works best with commands that produce output and are run regularly:
+
+- **Build systems** — `make`, `cmake`, `swift build`, `cargo build`, `go build`, `gradle assemble`, `npm run build`, `webpack`
+- **Test suites** — `pytest`, `swift test`, `cargo test`, `jest`, `go test ./...`
+- **CI/CD scripts** — deployment pipelines, release scripts, environment provisioning
+- **Infrastructure** — `terraform apply`, `ansible-playbook`, `docker build`
+- **Data pipelines** — database migrations, ETL jobs, batch processing scripts
+- **Package management** — `pod install`, `npm install`, `bundle install`
+
+`eta` is **not useful** for commands with no output or unpredictable one-off output (e.g. `cp`, `mv`, `curl`). It needs repeating structured output to learn from.
 
 ## Features
 
