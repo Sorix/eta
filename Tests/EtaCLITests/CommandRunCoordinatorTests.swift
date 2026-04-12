@@ -87,17 +87,29 @@ struct CommandRunCoordinatorTests {
         #expect(harness.historyStore.saved.count == 1)
     }
 
-    @Test("no history skips progress rendering")
-    func noHistorySkipsProgressRendering() throws {
+    @Test("no history renders elapsed status without ETA")
+    func noHistoryRendersElapsedStatusWithoutETA() throws {
         let harness = CoordinatorHarness()
+        harness.commandRunner.chunks = [
+            CommandOutputChunk(
+                rawOutput: Data("Done\n".utf8),
+                lineRecords: [makeLine("Done", offset: 1)],
+                stream: .standardOutput,
+                containsPartialLine: false
+            )
+        ]
         harness.commandRunner.output = CommandOutput(lineRecords: [makeLine("Done")], totalDuration: 1, exitCode: 0)
 
         try harness.coordinator.run(harness.request())
 
-        #expect(!harness.commandRunner.receivedOutputHandler)
-        #expect(harness.renderer.events.isEmpty)
-        #expect(harness.renderLoopCreateCount == 0)
-        #expect(harness.signalTrapCreateCount == 0)
+        #expect(harness.commandRunner.receivedOutputHandler)
+        #expect(harness.renderer.events == ["forceUpdate", "writeOutputAndRedraw", "finish"])
+        #expect(harness.renderer.remainingTimes == [nil, nil])
+        #expect(harness.renderer.elapsedTimes == [0, 0])
+        #expect(harness.renderLoopCreateCount == 1)
+        #expect(harness.signalTrapCreateCount == 1)
+        #expect(harness.renderLoop.cancelCount == 1)
+        #expect(harness.signalTrap.cancelCount == 1)
     }
 
     @Test("existing history enables render loop and rendering lifecycle")

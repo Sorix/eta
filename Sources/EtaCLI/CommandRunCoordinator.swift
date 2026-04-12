@@ -37,13 +37,14 @@ extension CommandRunner: CommandRunning {}
 protocol ProgressRendering: AnyObject, Sendable {
     var isEnabled: Bool { get }
 
-    func update(progress: ProgressFill, remainingTime: Double)
-    func forceUpdate(progress: ProgressFill, remainingTime: Double)
+    func update(progress: ProgressFill, remainingTime: Double?, elapsedTime: Double)
+    func forceUpdate(progress: ProgressFill, remainingTime: Double?, elapsedTime: Double)
     func writeOutputAndRedraw(
         rawOutput: Data,
         stream: CommandOutputStream,
         progress: ProgressFill,
-        remainingTime: Double,
+        remainingTime: Double?,
+        elapsedTime: Double,
         containsPartialLine: Bool
     )
     func cleanup()
@@ -111,12 +112,16 @@ struct CommandRunCoordinator {
         let history = try historyStore.load(for: request.commandKey)
         let progressEstimator = TimelineProgressEstimator(history: history)
         let renderer = rendererFactory(request.color, request.progressBarStyle)
-        let shouldRenderProgress = !request.quiet && renderer.isEnabled && progressEstimator.hasHistory
+        let shouldRenderProgress = !request.quiet && renderer.isEnabled
         let startTime = dateProvider()
 
         if shouldRenderProgress {
             let estimate = progressEstimator.estimate(elapsed: 0)
-            renderer.forceUpdate(progress: estimate.progress, remainingTime: estimate.remainingTime)
+            renderer.forceUpdate(
+                progress: estimate.progress,
+                remainingTime: Self.displayRemainingTime(for: estimate),
+                elapsedTime: 0
+            )
         }
 
         let renderLoop = shouldRenderProgress ? renderLoopFactory(ProgressRenderLoopConfiguration(
@@ -192,10 +197,15 @@ struct CommandRunCoordinator {
                 rawOutput: chunk.rawOutput,
                 stream: chunk.stream,
                 progress: estimate.progress,
-                remainingTime: estimate.remainingTime,
+                remainingTime: Self.displayRemainingTime(for: estimate),
+                elapsedTime: elapsed,
                 containsPartialLine: chunk.containsPartialLine
             )
         }
+    }
+
+    private static func displayRemainingTime(for estimate: ProgressEstimate) -> Double? {
+        estimate.adjustedExpectedTotalDuration > 0 ? estimate.remainingTime : nil
     }
 
     private func saveSuccessfulRun(

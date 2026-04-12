@@ -15,7 +15,11 @@ final class ProgressRenderLoop: ProgressRenderLooping, @unchecked Sendable {
         timer.setEventHandler { [renderer, estimator, startTime, dateProvider] in
             let elapsed = dateProvider().timeIntervalSince(startTime)
             let estimate = estimator.estimate(elapsed: elapsed)
-            renderer.update(progress: estimate.progress, remainingTime: estimate.remainingTime)
+            renderer.update(
+                progress: estimate.progress,
+                remainingTime: estimate.adjustedExpectedTotalDuration > 0 ? estimate.remainingTime : nil,
+                elapsedTime: elapsed
+            )
         }
         timer.resume()
     }
