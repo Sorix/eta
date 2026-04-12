@@ -16,6 +16,8 @@ concurrency:
 
 env:
   SWIFT_VERSION: "6.2"
+  XCBEAUTIFY_VERSION: "3.2.1"
+  XCBEAUTIFY_SHA256: "f181ada16c637adb2ce7a58141f9182755ad382f2540042b215b9e6aa65c1977"
 
 jobs:
   unit:
@@ -39,14 +41,27 @@ jobs:
         with:
           swift-version: ${{ env.SWIFT_VERSION }}
 
-      - name: Install xcbeautify
+      - name: Cache xcbeautify
         if: runner.os == 'Linux'
-        run: brew install xcbeautify
+        id: cache-xcbeautify
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/bin/xcbeautify
+          key: xcbeautify-${{ env.XCBEAUTIFY_VERSION }}-linux-static
+
+      - name: Install xcbeautify
+        if: runner.os == 'Linux' && steps.cache-xcbeautify.outputs.cache-hit != 'true'
+        run: |
+          archive="$(mktemp)"
+          curl -fsSL -o "$archive" "https://github.com/cpisciotta/xcbeautify/releases/download/$XCBEAUTIFY_VERSION/xcbeautify-${XCBEAUTIFY_VERSION}-x86_64-linux-static.tar.xz"
+          echo "$XCBEAUTIFY_SHA256  $archive" | sha256sum -c -
+          tar -xJf "$archive" -C /usr/local/bin
+          rm "$archive"
 
       - name: Run Swift tests
         run: |
           set -o pipefail
-          swift test 2>&1 | xcbeautify -q --is-ci
+          NSUnbufferedIO=YES swift test 2>&1 | xcbeautify -q --is-ci
 
   build:
     name: Release Build (${{ matrix.os }})
@@ -69,14 +84,27 @@ jobs:
         with:
           swift-version: ${{ env.SWIFT_VERSION }}
 
-      - name: Install xcbeautify
+      - name: Cache xcbeautify
         if: runner.os == 'Linux'
-        run: brew install xcbeautify
+        id: cache-xcbeautify
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/bin/xcbeautify
+          key: xcbeautify-${{ env.XCBEAUTIFY_VERSION }}-linux-static
+
+      - name: Install xcbeautify
+        if: runner.os == 'Linux' && steps.cache-xcbeautify.outputs.cache-hit != 'true'
+        run: |
+          archive="$(mktemp)"
+          curl -fsSL -o "$archive" "https://github.com/cpisciotta/xcbeautify/releases/download/$XCBEAUTIFY_VERSION/xcbeautify-${XCBEAUTIFY_VERSION}-x86_64-linux-static.tar.xz"
+          echo "$XCBEAUTIFY_SHA256  $archive" | sha256sum -c -
+          tar -xJf "$archive" -C /usr/local/bin
+          rm "$archive"
 
       - name: Build release
         run: |
           set -o pipefail
-          swift build -c release 2>&1 | xcbeautify
+          NSUnbufferedIO=YES swift build -c release 2>&1 | xcbeautify
 
       - name: Upload eta binary
         uses: actions/upload-artifact@v7
