@@ -8,7 +8,7 @@ var dependencies: [Package.Dependency] = [
 
 var processProgressDependencies: [Target.Dependency] = []
 
-#if !canImport(CryptoKit)
+#if os(Linux)
 dependencies.append(.package(url: "https://github.com/apple/swift-crypto", from: "3.0.0"))
 processProgressDependencies.append(.product(name: "Crypto", package: "swift-crypto"))
 #endif

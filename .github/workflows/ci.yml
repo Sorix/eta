@@ -1,10 +1,11 @@
 name: CI
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches:
-      - main
+      - master
 
 permissions:
   contents: read
@@ -14,193 +15,142 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  SWIFT_VERSION: "6.3"
+  SWIFT_VERSION: "6.2"
+  XCBEAUTIFY_VERSION: "3.2.1"
+  XCBEAUTIFY_SHA256: "f181ada16c637adb2ce7a58141f9182755ad382f2540042b215b9e6aa65c1977"
 
 jobs:
   unit:
     name: Unit Tests (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 10
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-          - ubuntu-24.04
-          - macos-15
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Install Swift
-        uses: swift-actions/setup-swift@v2
-        with:
-          swift-version: ${{ env.SWIFT_VERSION }}
-
-      - name: Print Swift version
-        run: swift --version
-
-      - name: Run Swift tests
-        run: swift test --parallel
-
-  release-build:
-    name: Release Build (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-          - ubuntu-24.04
-          - macos-15
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Install Swift
-        uses: swift-actions/setup-swift@v2
-        with:
-          swift-version: ${{ env.SWIFT_VERSION }}
-
-      - name: Install xcbeautify on Linux
-        if: runner.os == 'Linux'
-        run: scripts/ci/install-xcbeautify.sh
-
-      - name: Verify tools
-        run: |
-          swift --version
-          xcbeautify --version
-
-      - name: Build release
-        run: |
-          set -o pipefail
-          swift build -c release 2>&1 | xcbeautify --is-ci
-
-      - name: Package eta binary
-        run: tar -czf "eta-${{ matrix.os }}.tar.gz" -C .build/release eta
-
-      - name: Upload eta binary
-        uses: actions/upload-artifact@v6
-        with:
-          name: eta-${{ matrix.os }}
-          path: eta-${{ matrix.os }}.tar.gz
-          if-no-files-found: error
-          retention-days: 7
-
-  simulate:
-    name: Example simulate.sh (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    needs: release-build
     timeout-minutes: 5
     strategy:
       fail-fast: false
       matrix:
         os:
           - ubuntu-24.04
-          - macos-15
+          - macos-26
 
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Download eta binary
-        uses: actions/download-artifact@v8
+      - name: Setup Swift
+        if: runner.os == 'Linux'
+        uses: swift-actions/setup-swift@7591e4f04c00624cb043783da51a7fd6ee0a6bf6 # v2
         with:
-          name: eta-${{ matrix.os }}
-          path: artifacts
+          swift-version: ${{ env.SWIFT_VERSION }}
 
-      - name: Extract eta binary
+      - name: Cache xcbeautify
+        if: runner.os == 'Linux'
+        id: cache-xcbeautify
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/bin/xcbeautify
+          key: xcbeautify-${{ env.XCBEAUTIFY_VERSION }}-linux-static
+
+      - name: Install xcbeautify
+        if: runner.os == 'Linux' && steps.cache-xcbeautify.outputs.cache-hit != 'true'
         run: |
-          tar -xzf "artifacts/eta-${{ matrix.os }}.tar.gz" -C artifacts
-          chmod +x artifacts/eta
+          archive="$(mktemp)"
+          curl -fsSL -o "$archive" "https://github.com/cpisciotta/xcbeautify/releases/download/$XCBEAUTIFY_VERSION/xcbeautify-${XCBEAUTIFY_VERSION}-x86_64-linux-static.tar.xz"
+          echo "$XCBEAUTIFY_SHA256  $archive" | sha256sum -c -
+          tar -xJf "$archive" -C /usr/local/bin
+          rm "$archive"
+
+      - name: Perform unit tests
+        run: |
+          set -o pipefail
+          NSUnbufferedIO=YES swift test --parallel 2>&1 | xcbeautify --renderer github-actions
+
+  integration:
+    name: Integration Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - macos-26
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Swift
+        if: runner.os == 'Linux'
+        uses: swift-actions/setup-swift@7591e4f04c00624cb043783da51a7fd6ee0a6bf6 # v2
+        with:
+          swift-version: ${{ env.SWIFT_VERSION }}
+
+      - name: Cache xcbeautify
+        if: runner.os == 'Linux'
+        id: cache-xcbeautify
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/bin/xcbeautify
+          key: xcbeautify-${{ env.XCBEAUTIFY_VERSION }}-linux-static
+
+      - name: Install xcbeautify
+        if: runner.os == 'Linux' && steps.cache-xcbeautify.outputs.cache-hit != 'true'
+        run: |
+          archive="$(mktemp)"
+          curl -fsSL -o "$archive" "https://github.com/cpisciotta/xcbeautify/releases/download/$XCBEAUTIFY_VERSION/xcbeautify-${XCBEAUTIFY_VERSION}-x86_64-linux-static.tar.xz"
+          echo "$XCBEAUTIFY_SHA256  $archive" | sha256sum -c -
+          tar -xJf "$archive" -C /usr/local/bin
+          rm "$archive"
+
+      - name: Build release
+        run: |
+          set -o pipefail
+          NSUnbufferedIO=YES swift build -c release 2>&1 | xcbeautify --renderer github-actions
 
       - name: Run simulate.sh real test
-        run: scripts/ci/test-simulate.sh artifacts/eta
+        id: simulate
+        continue-on-error: true
+        run: |
+          scripts/ci/test-simulate.sh .build/release/eta
 
       - name: Upload simulate diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v6
+        if: ${{ steps.simulate.outcome == 'failure' }}
+        uses: actions/upload-artifact@v7
         with:
           name: simulate-diagnostics-${{ matrix.os }}
           path: ${{ runner.temp }}/eta-ci/simulate
           if-no-files-found: ignore
           retention-days: 7
 
-  stdio:
-    name: Stdout/Stderr Logs (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    needs: release-build
-    timeout-minutes: 5
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-          - ubuntu-24.04
-          - macos-15
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Download eta binary
-        uses: actions/download-artifact@v8
-        with:
-          name: eta-${{ matrix.os }}
-          path: artifacts
-
-      - name: Extract eta binary
-        run: |
-          tar -xzf "artifacts/eta-${{ matrix.os }}.tar.gz" -C artifacts
-          chmod +x artifacts/eta
-
       - name: Run stdout/stderr cleanliness test
-        run: scripts/ci/test-stdio-clean.sh artifacts/eta
+        id: stdio
+        continue-on-error: true
+        run: |
+          scripts/ci/test-stdio-clean.sh .build/release/eta
 
       - name: Upload stdio diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v6
+        if: ${{ steps.stdio.outcome == 'failure' }}
+        uses: actions/upload-artifact@v7
         with:
           name: stdio-diagnostics-${{ matrix.os }}
           path: ${{ runner.temp }}/eta-ci/stdio
           if-no-files-found: ignore
           retention-days: 7
 
-  performance:
-    name: Large Output Performance (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    needs: release-build
-    timeout-minutes: 5
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-          - ubuntu-24.04
-          - macos-15
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Download eta binary
-        uses: actions/download-artifact@v8
-        with:
-          name: eta-${{ matrix.os }}
-          path: artifacts
-
-      - name: Extract eta binary
-        run: |
-          tar -xzf "artifacts/eta-${{ matrix.os }}.tar.gz" -C artifacts
-          chmod +x artifacts/eta
-
       - name: Run large-output performance test
-        run: scripts/ci/test-large-output.sh artifacts/eta
+        id: performance
+        continue-on-error: true
+        run: |
+          scripts/ci/test-large-output.sh .build/release/eta
 
       - name: Upload performance diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v6
+        if: ${{ steps.performance.outcome == 'failure' }}
+        uses: actions/upload-artifact@v7
         with:
           name: performance-diagnostics-${{ matrix.os }}
           path: ${{ runner.temp }}/eta-ci/large-output
           if-no-files-found: ignore
           retention-days: 7
+
+      - name: Fail if release checks failed
+        if: ${{ always() && (steps.simulate.outcome == 'failure' || steps.stdio.outcome == 'failure' || steps.performance.outcome == 'failure') }}
+        run: exit 1

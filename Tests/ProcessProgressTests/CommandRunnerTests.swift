@@ -2,7 +2,7 @@ import Foundation
 @testable import ProcessProgress
 import Testing
 
-@Suite("Command runner")
+@Suite("Command runner", .serialized)
 struct CommandRunnerTests {
     @Test("collects stdout stderr exit code and final partial line")
     func collectsOutputAndExitCode() throws {
