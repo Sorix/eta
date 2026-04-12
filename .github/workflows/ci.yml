@@ -104,7 +104,7 @@ jobs:
       - name: Build release
         run: |
           set -o pipefail
-          NSUnbufferedIO=YES swift build -c release 2>&1 | xcbeautify
+          NSUnbufferedIO=YES swift build -c release 2>&1 | xcbeautify --renderer github-actions
 
       - name: Run simulate.sh real test
         id: simulate
