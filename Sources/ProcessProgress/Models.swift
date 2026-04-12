@@ -26,16 +26,9 @@ public struct Run: Codable, Sendable {
 }
 
 public struct CommandHistory: Codable, Sendable {
-    public var commandHash: String
     public var runs: [Run]
 
-    public init(command: String, runs: [Run]) {
-        self.commandHash = CommandFingerprint.hash(command)
-        self.runs = runs
-    }
-
-    public init(commandHash: String, runs: [Run]) {
-        self.commandHash = commandHash
+    public init(runs: [Run] = []) {
         self.runs = runs
     }
 }
