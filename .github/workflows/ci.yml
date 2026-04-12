@@ -23,7 +23,7 @@ jobs:
   unit:
     name: Unit Tests (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 10
+    timeout-minutes: 5
     strategy:
       fail-fast: false
       matrix:
@@ -64,9 +64,9 @@ jobs:
           NSUnbufferedIO=YES swift test --parallel 2>&1 | xcbeautify --renderer github-actions
 
   build:
-    name: Release Build (${{ matrix.os }})
+    name: Release Checks (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    timeout-minutes: 5
     strategy:
       fail-fast: false
       matrix:
@@ -106,48 +106,14 @@ jobs:
           set -o pipefail
           NSUnbufferedIO=YES swift build -c release 2>&1 | xcbeautify
 
-      - name: Upload eta binary
-        uses: actions/upload-artifact@v7
-        with:
-          name: eta-${{ matrix.os }}
-          path: .build/release/eta
-          if-no-files-found: error
-          retention-days: 1
-
-  simulate:
-    name: Example simulate.sh (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    needs: build
-    timeout-minutes: 5
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-          - ubuntu-24.04
-          - macos-26
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup Swift
-        if: runner.os == 'Linux'
-        uses: swift-actions/setup-swift@v2
-        with:
-          swift-version: ${{ env.SWIFT_VERSION }}
-
-      - name: Download eta binary
-        uses: actions/download-artifact@v8
-        with:
-          name: eta-${{ matrix.os }}
-
       - name: Run simulate.sh real test
+        id: simulate
+        continue-on-error: true
         run: |
-          chmod +x eta
-          scripts/ci/test-simulate.sh ./eta
+          scripts/ci/test-simulate.sh .build/release/eta
 
       - name: Upload simulate diagnostics
-        if: failure()
+        if: ${{ steps.simulate.outcome == 'failure' }}
         uses: actions/upload-artifact@v7
         with:
           name: simulate-diagnostics-${{ matrix.os }}
@@ -155,40 +121,14 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  stdio:
-    name: Stdout/Stderr Logs (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    needs: build
-    timeout-minutes: 5
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-          - ubuntu-24.04
-          - macos-26
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup Swift
-        if: runner.os == 'Linux'
-        uses: swift-actions/setup-swift@v2
-        with:
-          swift-version: ${{ env.SWIFT_VERSION }}
-
-      - name: Download eta binary
-        uses: actions/download-artifact@v8
-        with:
-          name: eta-${{ matrix.os }}
-
       - name: Run stdout/stderr cleanliness test
+        id: stdio
+        continue-on-error: true
         run: |
-          chmod +x eta
-          scripts/ci/test-stdio-clean.sh ./eta
+          scripts/ci/test-stdio-clean.sh .build/release/eta
 
       - name: Upload stdio diagnostics
-        if: failure()
+        if: ${{ steps.stdio.outcome == 'failure' }}
         uses: actions/upload-artifact@v7
         with:
           name: stdio-diagnostics-${{ matrix.os }}
@@ -196,43 +136,21 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  performance:
-    name: Large Output Performance (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    needs: build
-    timeout-minutes: 5
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-          - ubuntu-24.04
-          - macos-26
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup Swift
-        if: runner.os == 'Linux'
-        uses: swift-actions/setup-swift@v2
-        with:
-          swift-version: ${{ env.SWIFT_VERSION }}
-
-      - name: Download eta binary
-        uses: actions/download-artifact@v8
-        with:
-          name: eta-${{ matrix.os }}
-
       - name: Run large-output performance test
+        id: performance
+        continue-on-error: true
         run: |
-          chmod +x eta
-          scripts/ci/test-large-output.sh ./eta
+          scripts/ci/test-large-output.sh .build/release/eta
 
       - name: Upload performance diagnostics
-        if: failure()
+        if: ${{ steps.performance.outcome == 'failure' }}
         uses: actions/upload-artifact@v7
         with:
           name: performance-diagnostics-${{ matrix.os }}
           path: ${{ runner.temp }}/eta-ci/large-output
           if-no-files-found: ignore
           retention-days: 7
+
+      - name: Fail if release checks failed
+        if: ${{ always() && (steps.simulate.outcome == 'failure' || steps.stdio.outcome == 'failure' || steps.performance.outcome == 'failure') }}
+        run: exit 1
