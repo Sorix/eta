@@ -69,6 +69,65 @@ eta <command>              Run a command with progress tracking
 - Lines downsampled to 5000 max (evenly spaced) on save
 - Swift 6 strict concurrency throughout
 
+## Progress Estimation Pipeline
+
+```
+Historical runs          Current run
+─────────────           ───────────
+┌─────────────┐         ┌──────────┐
+│ Run N (most │         │ Live     │
+│ recent =    │────┐    │ output   │
+│ reference)  │    │    │ stream   │
+└─────────────┘    │    └────┬─────┘
+                   ▼         │
+┌─────────────┐  ┌──────────▼──────┐
+│ Weighted    │  │  LineMatcher    │
+│ mean ETA    │  │  exact hash →   │
+│ (α = 0.3)  │  │  normalized     │
+│ from all    │  │  fallback       │
+│ runs        │  └──────────┬──────┘
+└──────┬──────┘             │
+       │              ┌─────▼──────┐
+       └──────────────►  Timeline  │
+                      │  Progress  │
+                      │  Estimator │
+                      └─────┬──────┘
+                            │
+                      ┌─────▼──────┐
+                      │  Progress  │
+                      │  Renderer  │
+                      │  (/dev/tty)│
+                      └────────────┘
+```
+
+1. **EstimateCalculator** computes a baseline expected duration as the exponential weighted mean across all stored runs
+2. **LineMatcher** maps each live output line to the reference run (most recent successful run) — exact MD5 hash match first, then normalized hash fallback
+3. **TimelineProgressEstimator** tracks the furthest matched reference line ("confirmed" progress) and projects a timer forward from the last correction point ("predicted" progress)
+4. **ProgressRenderer** draws the bar on `/dev/tty` at 5 fps, with atomic clear-write-redraw under a lock to prevent races between timer updates and output lines
+
+## Privacy Model
+
+History files reveal nothing about what commands you run or what they output:
+
+| Data | Stored as | Algorithm | Reversible? |
+|------|-----------|-----------|-------------|
+| Command key | `filename.json` | SHA-256 | No |
+| Output lines | `textHash`, `normalizedHash` | MD5 | No |
+
+Only timing data (timestamps, durations, dates) is stored in plaintext.
+
+## Line Normalization
+
+Before the fallback hash, lines are normalized:
+
+| Original | Normalized |
+|----------|------------|
+| `[3/100] Compiling Foo.swift` | `[N/N] Compiling Foo.swift` |
+| `Step  5  of  20` | `Step N of N` |
+| `Downloaded   128 MB` | `Downloaded N MB` |
+
+All digit runs collapse to `N`. All whitespace runs collapse to a single space.
+
 ## Git Conventions
 
 - Commit at each logical step (one concern per commit)
