@@ -1,0 +1,206 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SWIFT_VERSION: "6.0"
+
+jobs:
+  unit:
+    name: Unit Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Swift
+        uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: ${{ env.SWIFT_VERSION }}
+
+      - name: Print Swift version
+        run: swift --version
+
+      - name: Run Swift tests
+        run: swift test --parallel
+
+  release-build:
+    name: Release Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Swift
+        uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: ${{ env.SWIFT_VERSION }}
+
+      - name: Install xcbeautify on Linux
+        if: runner.os == 'Linux'
+        run: scripts/ci/install-xcbeautify.sh
+
+      - name: Verify tools
+        run: |
+          swift --version
+          xcbeautify --version
+
+      - name: Build release
+        run: |
+          set -o pipefail
+          swift build -c release 2>&1 | xcbeautify --is-ci
+
+      - name: Package eta binary
+        run: tar -czf "eta-${{ matrix.os }}.tar.gz" -C .build/release eta
+
+      - name: Upload eta binary
+        uses: actions/upload-artifact@v6
+        with:
+          name: eta-${{ matrix.os }}
+          path: eta-${{ matrix.os }}.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
+  simulate:
+    name: Example simulate.sh (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: release-build
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Download eta binary
+        uses: actions/download-artifact@v8
+        with:
+          name: eta-${{ matrix.os }}
+          path: artifacts
+
+      - name: Extract eta binary
+        run: |
+          tar -xzf "artifacts/eta-${{ matrix.os }}.tar.gz" -C artifacts
+          chmod +x artifacts/eta
+
+      - name: Run simulate.sh real test
+        run: scripts/ci/test-simulate.sh artifacts/eta
+
+      - name: Upload simulate diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: simulate-diagnostics-${{ matrix.os }}
+          path: ${{ runner.temp }}/eta-ci/simulate
+          if-no-files-found: ignore
+          retention-days: 7
+
+  stdio:
+    name: Stdout/Stderr Logs (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: release-build
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Download eta binary
+        uses: actions/download-artifact@v8
+        with:
+          name: eta-${{ matrix.os }}
+          path: artifacts
+
+      - name: Extract eta binary
+        run: |
+          tar -xzf "artifacts/eta-${{ matrix.os }}.tar.gz" -C artifacts
+          chmod +x artifacts/eta
+
+      - name: Run stdout/stderr cleanliness test
+        run: scripts/ci/test-stdio-clean.sh artifacts/eta
+
+      - name: Upload stdio diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: stdio-diagnostics-${{ matrix.os }}
+          path: ${{ runner.temp }}/eta-ci/stdio
+          if-no-files-found: ignore
+          retention-days: 7
+
+  performance:
+    name: Large Output Performance (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: release-build
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Download eta binary
+        uses: actions/download-artifact@v8
+        with:
+          name: eta-${{ matrix.os }}
+          path: artifacts
+
+      - name: Extract eta binary
+        run: |
+          tar -xzf "artifacts/eta-${{ matrix.os }}.tar.gz" -C artifacts
+          chmod +x artifacts/eta
+
+      - name: Run large-output performance test
+        run: scripts/ci/test-large-output.sh artifacts/eta
+
+      - name: Upload performance diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: performance-diagnostics-${{ matrix.os }}
+          path: ${{ runner.temp }}/eta-ci/large-output
+          if-no-files-found: ignore
+          retention-days: 7

@@ -7,11 +7,16 @@ This is the canonical AI coding instructions file for this repository. Tool-spec
 ```bash
 swift build 2>&1 | xcbeautify --is-ci        # debug build
 swift build -c release 2>&1 | xcbeautify --is-ci  # release build
+swift test --parallel                # Swift Testing unit/integration tests
+scripts/ci/test-simulate.sh .build/release/eta      # real simulate.sh test
+scripts/ci/test-large-output.sh .build/release/eta  # large-output performance test
+scripts/ci/test-stdio-clean.sh .build/release/eta   # stdout/stderr cleanliness test
 swift run eta 'your command here'    # run directly
 make install                         # install to /usr/local/bin
 ```
 
 Always pipe `swift build` output through `xcbeautify` for readable build output.
+CI runs release build, Swift tests, the real simulate example, the large-output performance test, and stdout/stderr cleanliness checks on Linux and macOS pull request jobs. The macOS image uses preinstalled `xcbeautify`; Linux installs it in CI.
 
 ## Project Structure
 
@@ -35,6 +40,10 @@ Sources/
 │   └── BarColor+ArgumentParser.swift # ArgumentParser conformance for BarColor
 └── eta-cli/                 # Thin executable target "eta"
     └── main.swift           # Calls ETA.main()
+Tests/
+├── ProcessProgressTests/    # Swift Testing coverage for the library target
+└── EtaCLITests/             # Swift Testing coverage for CLI orchestration and validation
+scripts/ci/                  # GitHub Actions real/e2e and performance test scripts
 ```
 
 ## CLI Flags
@@ -72,6 +81,7 @@ eta <command>              Run a command with progress tracking
 - History: JSON files keyed by SHA256 of the command key (`--name` or command string) and storing only that hash
   - macOS: `~/Library/Caches/eta/`
   - Linux: `$XDG_CACHE_HOME/eta/` or `~/.cache/eta/`
+- Tests and CI may set `ETA_CACHE_DIR` to isolate history files in a temporary directory; this is a hidden test hook, not a user-facing CLI flag
 - Failed runs (non-zero exit) are not stored
 - Lines downsampled to 5000 max (evenly spaced) on save
 - Swift 6 strict concurrency throughout
