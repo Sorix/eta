@@ -215,7 +215,7 @@ final class ProgressRenderer: ProgressRendering, @unchecked Sendable {
 
     static func terminalWidth(fileDescriptor: Int32) -> Int {
         var w = winsize()
-        if ioctl(fileDescriptor, TIOCGWINSZ, &w) == 0, w.ws_col > 0 {
+        if ioctl(fileDescriptor, UInt(TIOCGWINSZ), &w) == 0, w.ws_col > 0 {
             return Int(w.ws_col)
         }
         return 80

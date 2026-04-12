@@ -45,8 +45,9 @@ jobs:
 
       - name: Run Swift tests
         run: |
-          set -o pipefail
-          swift test --parallel 2>&1 | xcbeautify
+          swift test -v
+          # set -o pipefail
+          # swift test --parallel 2>&1 | xcbeautify
 
   build:
     name: Release Build (${{ matrix.os }})
