@@ -2,74 +2,7 @@ import ArgumentParser
 import Foundation
 import ProcessProgress
 
-typealias DateProvider = @Sendable () -> Date
-typealias RendererFactory = @Sendable (BarColor, ProgressBarStyle) -> any ProgressRendering
-typealias RenderLoopFactory = @Sendable (ProgressRenderLoopConfiguration) -> any ProgressRenderLooping
-typealias SignalTrapFactory = @Sendable (@escaping @Sendable () -> Void) -> any SignalTrapping
-
-struct ProgressRenderLoopConfiguration: Sendable {
-    let renderer: any ProgressRendering
-    let estimator: TimelineProgressEstimator
-    let startTime: Date
-    let dateProvider: DateProvider
-}
-
-protocol HistoryStoring {
-    func load(for command: String) throws -> CommandHistory?
-    func save(
-        _ history: CommandHistory,
-        for command: String,
-        maximumRunCount: Int,
-        staleAfterDays: Int
-    ) throws
-    func clear(for command: String) throws
-    func clearAll() throws
-}
-
-extension HistoryStore: HistoryStoring {}
-
-protocol CommandRunning {
-    func run(_ command: String, outputHandler: CommandOutputHandler?) throws -> CommandOutput
-}
-
-extension CommandRunner: CommandRunning {}
-
-protocol ProgressRendering: AnyObject, Sendable {
-    var isEnabled: Bool { get }
-
-    func update(progress: ProgressFill, remainingTime: Double?, elapsedTime: Double)
-    func forceUpdate(progress: ProgressFill, remainingTime: Double?, elapsedTime: Double)
-    func writeOutputAndRedraw(
-        rawOutput: Data,
-        stream: CommandOutputStream,
-        progress: ProgressFill,
-        remainingTime: Double?,
-        elapsedTime: Double,
-        containsPartialLine: Bool
-    )
-    func cleanup()
-    func finish(elapsed: Double, expectedDuration: Double)
-}
-
-protocol ProgressRenderLooping: Sendable {
-    func cancel()
-}
-
-protocol SignalTrapping: Sendable {
-    func cancel()
-}
-
-/// Options needed to run one wrapped command from the CLI.
-struct CommandRunRequest: Sendable {
-    let command: String
-    let commandKey: String
-    let maximumRunCount: Int
-    let quiet: Bool
-    let color: BarColor
-    let progressBarStyle: ProgressBarStyle
-}
-
-/// Coordinates history, command execution, progress estimation, and terminal rendering.
+/// Runs the high-level command workflow: load history, execute, render progress, and save success.
 struct CommandRunCoordinator {
     private let historyStore: any HistoryStoring
     private let commandRunner: any CommandRunning
@@ -114,66 +47,40 @@ struct CommandRunCoordinator {
         let renderer = rendererFactory(request.color, request.progressBarStyle)
         let shouldRenderProgress = !request.quiet && renderer.isEnabled
         let startTime = dateProvider()
-
-        if shouldRenderProgress {
-            let estimate = progressEstimator.estimate(elapsed: 0)
-            renderer.forceUpdate(
-                progress: estimate.progress,
-                remainingTime: Self.displayRemainingTime(for: estimate),
-                elapsedTime: 0
-            )
-        }
-
-        let renderLoop = shouldRenderProgress ? renderLoopFactory(ProgressRenderLoopConfiguration(
+        var renderingSession = RenderingSession(
             renderer: renderer,
+            isActive: shouldRenderProgress,
             estimator: progressEstimator,
             startTime: startTime,
-            dateProvider: dateProvider
-        )) : nil
-        let signalTrap = shouldRenderProgress
-            ? signalTrapFactory {
-                renderLoop?.cancel()
-                renderer.cleanup()
-            }
-            : nil
-
-        var didEndRenderingLifecycle = false
-        func endRenderingLifecycle(cleanupOnly: Bool) {
-            guard !didEndRenderingLifecycle else { return }
-            didEndRenderingLifecycle = true
-            renderLoop?.cancel()
-            signalTrap?.cancel()
-            if cleanupOnly, shouldRenderProgress {
-                renderer.cleanup()
-            }
-        }
+            dateProvider: dateProvider,
+            renderLoopFactory: renderLoopFactory,
+            signalTrapFactory: signalTrapFactory
+        )
 
         let output: CommandOutput
         do {
             output = try runCommand(
                 request.command,
-                renderingProgress: shouldRenderProgress,
+                renderingProgress: renderingSession.isActive,
                 startTime: startTime,
                 progressEstimator: progressEstimator,
                 renderer: renderer
             )
         } catch {
-            endRenderingLifecycle(cleanupOnly: true)
+            renderingSession.end(cleanupOnly: true)
             throw error
         }
 
         guard output.exitCode == 0 else {
-            endRenderingLifecycle(cleanupOnly: true)
+            renderingSession.end(cleanupOnly: true)
             throw ExitCode(output.exitCode)
         }
 
-        endRenderingLifecycle(cleanupOnly: false)
-        if shouldRenderProgress {
-            renderer.finish(
-                elapsed: output.totalDuration,
-                expectedDuration: progressEstimator.expectedTotalDuration
-            )
-        }
+        renderingSession.end(cleanupOnly: false)
+        renderingSession.finish(
+            elapsed: output.totalDuration,
+            expectedDuration: progressEstimator.expectedTotalDuration
+        )
 
         saveSuccessfulRun(output, history: history, request: request)
     }
@@ -201,15 +108,11 @@ struct CommandRunCoordinator {
                 rawOutput: chunk.rawOutput,
                 stream: chunk.stream,
                 progress: estimate.progress,
-                remainingTime: Self.displayRemainingTime(for: estimate),
+                remainingTime: estimate.displayRemainingTime,
                 elapsedTime: elapsed,
                 containsPartialLine: chunk.containsPartialLine
             )
         }
-    }
-
-    private static func displayRemainingTime(for estimate: ProgressEstimate) -> Double? {
-        estimate.adjustedExpectedTotalDuration > 0 ? estimate.remainingTime : nil
     }
 
     private func saveSuccessfulRun(

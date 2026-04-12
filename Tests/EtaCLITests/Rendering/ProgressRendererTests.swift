@@ -6,13 +6,14 @@ import Testing
 struct ProgressRendererTests {
     @Test("unknown ETA renders Codex-style estimating status")
     func unknownETARendersEstimatingStatus() {
-        let line = ProgressRenderer.buildBar(
+        let line = ProgressBarFormatter.buildLine(
             progress: ProgressFill(confirmed: 0, predicted: 0),
             remainingTime: nil,
             elapsedTime: 22,
             width: 32,
             color: .cyan,
-            style: .layered
+            style: .layered,
+            terminalColors: nil
         )
 
         let visibleLine = stripANSI(line)
@@ -24,21 +25,23 @@ struct ProgressRendererTests {
 
     @Test("unknown ETA estimating status animates without changing layout")
     func unknownETAEstimatingStatusAnimates() {
-        let firstFrame = ProgressRenderer.buildBar(
+        let firstFrame = ProgressBarFormatter.buildLine(
             progress: ProgressFill(confirmed: 0, predicted: 0),
             remainingTime: nil,
             elapsedTime: 0,
             width: 32,
             color: .cyan,
-            style: .layered
+            style: .layered,
+            terminalColors: nil
         )
-        let secondFrame = ProgressRenderer.buildBar(
+        let secondFrame = ProgressBarFormatter.buildLine(
             progress: ProgressFill(confirmed: 0, predicted: 0),
             remainingTime: nil,
             elapsedTime: 0.49,
             width: 32,
             color: .cyan,
-            style: .layered
+            style: .layered,
+            terminalColors: nil
         )
 
         #expect(firstFrame != secondFrame)
@@ -47,21 +50,23 @@ struct ProgressRendererTests {
 
     @Test("unknown ETA status ignores configured bar color")
     func unknownETAStatusIgnoresConfiguredBarColor() {
-        let greenLine = ProgressRenderer.buildBar(
+        let greenLine = ProgressBarFormatter.buildLine(
             progress: ProgressFill(confirmed: 0, predicted: 0),
             remainingTime: nil,
             elapsedTime: 1,
             width: 32,
             color: .green,
-            style: .layered
+            style: .layered,
+            terminalColors: nil
         )
-        let magentaLine = ProgressRenderer.buildBar(
+        let magentaLine = ProgressBarFormatter.buildLine(
             progress: ProgressFill(confirmed: 0, predicted: 0),
             remainingTime: nil,
             elapsedTime: 1,
             width: 32,
             color: .magenta,
-            style: .solid
+            style: .solid,
+            terminalColors: nil
         )
 
         #expect(greenLine == magentaLine)
@@ -71,13 +76,14 @@ struct ProgressRendererTests {
 
     @Test("known ETA still renders determinate progress bar")
     func knownETAStillRendersDeterminateProgressBar() {
-        let line = ProgressRenderer.buildBar(
+        let line = ProgressBarFormatter.buildLine(
             progress: ProgressFill(confirmed: 0.25, predicted: 0.5),
             remainingTime: 5,
             elapsedTime: 5,
             width: 40,
             color: .green,
-            style: .layered
+            style: .layered,
+            terminalColors: nil
         )
 
         let visibleLine = stripANSI(line)

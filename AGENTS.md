@@ -25,28 +25,22 @@ CI runs release build, Swift tests, the real simulate example, the large-output 
 ```
 Sources/
 ├── ProcessProgress/         # Library target, no ArgumentParser dependency
-│   ├── Models.swift         # CommandHistory, CommandRun, LineRecord, hashing, normalization
-│   ├── HistoryStore.swift   # JSON load/save, pruning, line downsampling
-│   ├── CommandRunner.swift  # Process wrapper, output chunks, line timestamping
-│   ├── OutputLineBuffer.swift # Deterministic stdout/stderr line buffering
-│   ├── LineMatcher.swift    # Exact hash → normalized hash fallback matching
-│   ├── ReferenceTimeline.swift # Baseline weighted mean duration and reference offsets
-│   ├── TimelineProgressEstimator.swift # Cached current-log progress estimation
-│   └── LockIsolated.swift   # Internal lock-protected storage helper
+│   ├── Models/              # CommandHistory, CommandRun, LineRecord, ProgressEstimate, ProgressFill
+│   ├── Hashing/             # CommandFingerprint, LineHash, LineNormalizer
+│   ├── History/             # JSON load/save, pruning, line downsampling
+│   ├── Execution/           # Process wrapper, output chunks, line buffering, stdout/stderr writing
+│   ├── Matching/            # LineMatcher, ReferenceTimeline, TimelineProgressEstimator
+│   └── Support/             # Internal lock-protected storage helper
 ├── EtaCLI/                  # Library target with ArgumentParser dependency
-│   ├── ETA.swift            # ArgumentParser command and all CLI flags
-│   ├── CommandRunCoordinator.swift # History/run/render orchestration
-│   ├── ProgressRenderLoop.swift # 32 ms progress/status redraw timer
-│   ├── SignalTrap.swift     # SIGINT/SIGTERM cleanup and re-raise
-│   ├── ProgressRenderer.swift # ANSI progress/status rendering on /dev/tty, TTY detection, BarColor
-│   ├── IndeterminateStatusRenderer.swift # Shimmered "Estimating" status while ETA is unknown
-│   ├── TerminalDefaultColors.swift # OSC terminal default foreground/background color query
-│   └── BarColor+ArgumentParser.swift # ArgumentParser conformance for BarColor
+│   ├── Command/             # ArgumentParser command, CLI flags, BarColor ArgumentParser conformance
+│   ├── Coordination/        # History/run/render orchestration, request/dependency protocols, render lifecycle
+│   ├── Rendering/           # ANSI progress/status rendering, formatting, terminal I/O, OSC color query
+│   └── Runtime/             # 32 ms redraw timer and SIGINT/SIGTERM cleanup/re-raise
 └── eta-cli/                 # Thin executable target "eta"
     └── main.swift           # Calls ETA.main()
 Tests/
-├── ProcessProgressTests/    # Swift Testing coverage for the library target
-└── EtaCLITests/             # Swift Testing coverage for CLI orchestration and validation
+├── ProcessProgressTests/    # Swift Testing coverage grouped by ProcessProgress responsibility
+└── EtaCLITests/             # Swift Testing coverage grouped by CLI responsibility
 scripts/ci/                  # GitHub Actions real/e2e and performance test scripts
 ```
 
