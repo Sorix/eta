@@ -60,8 +60,7 @@ jobs:
 
       - name: Run Swift tests
         run: |
-          set -o pipefail
-          NSUnbufferedIO=YES swift test 2>&1 | xcbeautify -q --is-ci
+          set -o pipefail && NSUnbufferedIO=YES swift test | xcbeautify --renderer github-actions
 
   build:
     name: Release Build (${{ matrix.os }})
