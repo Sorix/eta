@@ -64,7 +64,7 @@ jobs:
           NSUnbufferedIO=YES swift build --build-tests 2>&1 | xcbeautify --renderer github-actions
 
       - name: Run Swift tests
-        run: swift test --skip-build --parallel
+        run: swift test --skip-build --parallel | xcbeautify --renderer github-actions
 
   build:
     name: Release Build (${{ matrix.os }})
