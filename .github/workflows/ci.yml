@@ -63,8 +63,8 @@ jobs:
           set -o pipefail
           NSUnbufferedIO=YES swift test --parallel 2>&1 | xcbeautify --renderer github-actions
 
-  build:
-    name: Release Checks (${{ matrix.os }})
+  integration:
+    name: Integration Tests (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 5
     strategy:
