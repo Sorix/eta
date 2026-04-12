@@ -1,12 +1,33 @@
 import Foundation
 
+/// The command output stream that produced a chunk of bytes.
+public enum CommandOutputStream: Sendable, Equatable {
+    /// Bytes written to standard output.
+    case standardOutput
+
+    /// Bytes written to standard error.
+    case standardError
+}
+
+/// The result of running a shell command.
 public struct CommandOutput: Sendable {
-    public let lines: [LineRecord]
+    /// Hashed output lines collected while the command ran.
+    public let lineRecords: [LineRecord]
+
+    /// Total wall-clock duration in seconds.
     public let totalDuration: Double
+
+    /// Process termination status.
     public let exitCode: Int32
 
-    public init(lines: [LineRecord], totalDuration: Double, exitCode: Int32) {
-        self.lines = lines
+    /// Creates command output from collected line records, duration, and exit code.
+    ///
+    /// - Parameters:
+    ///   - lineRecords: Hashed output lines collected while the command ran.
+    ///   - totalDuration: Total wall-clock duration in seconds.
+    ///   - exitCode: Process termination status.
+    public init(lineRecords: [LineRecord], totalDuration: Double, exitCode: Int32) {
+        self.lineRecords = lineRecords
         self.totalDuration = totalDuration
         self.exitCode = exitCode
     }
@@ -14,35 +35,68 @@ public struct CommandOutput: Sendable {
 
 /// A raw output chunk plus any complete line records observed in that chunk.
 public struct CommandOutputChunk: Sendable {
-    public let data: Data
-    public let records: [LineRecord]
-    public let isStderr: Bool
-    public let hasOpenLine: Bool
+    /// Raw bytes exactly as emitted by the command.
+    public let rawOutput: Data
 
-    public init(data: Data, records: [LineRecord], isStderr: Bool, hasOpenLine: Bool) {
-        self.data = data
-        self.records = records
-        self.isStderr = isStderr
-        self.hasOpenLine = hasOpenLine
+    /// Complete line records parsed from `rawOutput`.
+    public let lineRecords: [LineRecord]
+
+    /// The output stream that produced `rawOutput`.
+    public let stream: CommandOutputStream
+
+    /// Whether the stream currently has bytes for a line without a trailing newline.
+    public let containsPartialLine: Bool
+
+    /// Creates an output chunk from raw bytes and parsed line metadata.
+    ///
+    /// - Parameters:
+    ///   - rawOutput: Raw bytes exactly as emitted by the command.
+    ///   - lineRecords: Complete line records parsed from `rawOutput`.
+    ///   - stream: The output stream that produced `rawOutput`.
+    ///   - containsPartialLine: Whether the stream currently has bytes for a line without a trailing newline.
+    public init(
+        rawOutput: Data,
+        lineRecords: [LineRecord],
+        stream: CommandOutputStream,
+        containsPartialLine: Bool
+    ) {
+        self.rawOutput = rawOutput
+        self.lineRecords = lineRecords
+        self.stream = stream
+        self.containsPartialLine = containsPartialLine
     }
 }
 
-/// Callback for raw command output. The callback is responsible for writing
-/// `chunk.data` unchanged when custom rendering is needed.
-public typealias OutputCallback = @Sendable (CommandOutputChunk) -> Void
+/// Handles raw command output while a command is running.
+///
+/// The handler is responsible for writing `chunk.rawOutput` unchanged when custom
+/// rendering is needed.
+public typealias CommandOutputHandler = @Sendable (CommandOutputChunk) -> Void
 
+/// Runs shell commands and records hashed output lines with timeline offsets.
 public struct CommandRunner: Sendable {
-    public init() {}
+    private let outputWriter: CommandOutputWriter
 
-    /// Run a shell command, calling `onOutput` for each raw output chunk.
-    /// Without a callback, stdout/stderr bytes are passed through unchanged.
-    /// Returns collected lines with timestamps plus the exit code.
-    public func run(command: String, onOutput: OutputCallback? = nil) throws -> CommandOutput {
-        let process = Process()
-        let shellPath = ProcessInfo.processInfo.environment["SHELL"].flatMap { $0.isEmpty ? nil : $0 } ?? "/bin/sh"
-        process.executableURL = URL(fileURLWithPath: shellPath)
-        process.arguments = ["-c", command]
+    /// Creates a command runner that passes output through to standard output and standard error.
+    public init() {
+        self.outputWriter = .standard
+    }
 
+    init(outputWriter: CommandOutputWriter) {
+        self.outputWriter = outputWriter
+    }
+
+    /// Runs a shell command.
+    ///
+    /// Without `outputHandler`, stdout and stderr bytes are passed through unchanged.
+    ///
+    /// - Parameters:
+    ///   - command: The shell command to run.
+    ///   - outputHandler: Optional handler for raw output chunks.
+    /// - Returns: Collected line records, total duration, and the command exit code.
+    /// - Throws: Any error thrown while launching the process.
+    public func run(_ command: String, outputHandler: CommandOutputHandler? = nil) throws -> CommandOutput {
+        let process = makeProcess(command: command)
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()
         process.standardOutput = stdoutPipe
@@ -50,175 +104,105 @@ public struct CommandRunner: Sendable {
 
         let startTime = Date()
         let collectedLines = LockIsolated<[LineRecord]>([])
-        let stdoutLineBuffer = LockIsolated(StreamLineBuffer())
-        let stderrLineBuffer = LockIsolated(StreamLineBuffer())
-        let onOutputCopy = onOutput
+        let stdoutLineBuffer = LockIsolated(OutputLineBuffer())
+        let stderrLineBuffer = LockIsolated(OutputLineBuffer())
 
-        let handleData: @Sendable (Data, Bool) -> Void = { data, isStderr in
-            let buffer = isStderr ? stderrLineBuffer : stdoutLineBuffer
-            let update = buffer.withLock { $0.append(data, startTime: startTime) }
+        let handleOutput: @Sendable (Data, CommandOutputStream) -> Void = { data, stream in
+            let offsetSeconds = Date().timeIntervalSince(startTime)
+            let buffer = stream == .standardError ? stderrLineBuffer : stdoutLineBuffer
+            let update = buffer.withLock { $0.append(data, offsetSeconds: offsetSeconds) }
 
-            if !update.records.isEmpty {
-                collectedLines.withLock { $0.append(contentsOf: update.records) }
+            if !update.lineRecords.isEmpty {
+                collectedLines.withLock { $0.append(contentsOf: update.lineRecords) }
             }
 
-            if let callback = onOutputCopy {
-                callback(CommandOutputChunk(
-                    data: data,
-                    records: update.records,
-                    isStderr: isStderr,
-                    hasOpenLine: update.hasOpenLine
+            if let outputHandler {
+                outputHandler(CommandOutputChunk(
+                    rawOutput: data,
+                    lineRecords: update.lineRecords,
+                    stream: stream,
+                    containsPartialLine: update.containsPartialLine
                 ))
             } else {
-                Self.writeOutput(data, isStderr: isStderr)
+                outputWriter.write(data, to: stream)
             }
         }
 
         let drainGroup = DispatchGroup()
-
-        drainGroup.enter()
-        DispatchQueue.global().async {
-            defer { drainGroup.leave() }
-            while true {
-                let data = stdoutPipe.fileHandleForReading.availableData
-                guard !data.isEmpty else { break }
-                handleData(data, false)
-            }
-        }
-
-        drainGroup.enter()
-        DispatchQueue.global().async {
-            defer { drainGroup.leave() }
-            while true {
-                let data = stderrPipe.fileHandleForReading.availableData
-                guard !data.isEmpty else { break }
-                handleData(data, true)
-            }
-        }
+        drain(stdoutPipe, stream: .standardOutput, group: drainGroup, handler: handleOutput)
+        drain(stderrPipe, stream: .standardError, group: drainGroup, handler: handleOutput)
 
         try process.run()
         process.waitUntilExit()
         drainGroup.wait()
 
-        let finalStdoutRecords = stdoutLineBuffer.withLock { $0.flushFinalLine(startTime: startTime) }
-        let finalStderrRecords = stderrLineBuffer.withLock { $0.flushFinalLine(startTime: startTime) }
-        if !finalStdoutRecords.isEmpty || !finalStderrRecords.isEmpty {
-            collectedLines.withLock {
-                $0.append(contentsOf: finalStdoutRecords)
-                $0.append(contentsOf: finalStderrRecords)
-            }
-        }
-
         let totalDuration = Date().timeIntervalSince(startTime)
+        flushFinalLines(
+            stdoutLineBuffer: stdoutLineBuffer,
+            stderrLineBuffer: stderrLineBuffer,
+            offsetSeconds: totalDuration,
+            into: collectedLines
+        )
 
         return CommandOutput(
-            lines: collectedLines.withLock { $0 },
+            lineRecords: collectedLines.withLock { $0 },
             totalDuration: totalDuration,
             exitCode: process.terminationStatus
         )
     }
 
-    // MARK: - Line Normalization
-
-    /// Collapse numeric runs and whitespace for fuzzy line matching.
-    static func normalize(_ text: String) -> String {
-        var result = ""
-        result.reserveCapacity(text.count)
-        var lastWasSpace = false
-        var lastWasDigit = false
-        for ch in text {
-            if ch.isNumber {
-                if !lastWasDigit {
-                    result.append("N")
-                }
-                lastWasSpace = false
-                lastWasDigit = true
-                continue
-            }
-            if ch.isWhitespace {
-                if !lastWasSpace {
-                    result.append(" ")
-                    lastWasSpace = true
-                }
-                lastWasDigit = false
-            } else {
-                result.append(ch)
-                lastWasSpace = false
-                lastWasDigit = false
-            }
-        }
-        return result.trimmingCharacters(in: .whitespaces)
+    private func makeProcess(command: String) -> Process {
+        let process = Process()
+        let shellPath = ProcessInfo.processInfo.environment["SHELL"].flatMap { $0.isEmpty ? nil : $0 } ?? "/bin/sh"
+        process.executableURL = URL(fileURLWithPath: shellPath)
+        process.arguments = ["-c", command]
+        return process
     }
 
-    private static func writeOutput(_ data: Data, isStderr: Bool) {
-        let handle = isStderr ? FileHandle.standardError : FileHandle.standardOutput
+    private func drain(
+        _ pipe: Pipe,
+        stream: CommandOutputStream,
+        group: DispatchGroup,
+        handler: @escaping @Sendable (Data, CommandOutputStream) -> Void
+    ) {
+        group.enter()
+        DispatchQueue.global().async {
+            defer { group.leave() }
+
+            while true {
+                let data = pipe.fileHandleForReading.availableData
+                guard !data.isEmpty else { break }
+                handler(data, stream)
+            }
+        }
+    }
+
+    private func flushFinalLines(
+        stdoutLineBuffer: LockIsolated<OutputLineBuffer>,
+        stderrLineBuffer: LockIsolated<OutputLineBuffer>,
+        offsetSeconds: Double,
+        into collectedLines: LockIsolated<[LineRecord]>
+    ) {
+        let finalStdoutRecords = stdoutLineBuffer.withLock { $0.flushFinalLine(offsetSeconds: offsetSeconds) }
+        let finalStderrRecords = stderrLineBuffer.withLock { $0.flushFinalLine(offsetSeconds: offsetSeconds) }
+        guard !finalStdoutRecords.isEmpty || !finalStderrRecords.isEmpty else { return }
+
+        collectedLines.withLock {
+            $0.append(contentsOf: finalStdoutRecords)
+            $0.append(contentsOf: finalStderrRecords)
+        }
+    }
+}
+
+struct CommandOutputWriter: Sendable {
+    let write: @Sendable (Data, CommandOutputStream) -> Void
+
+    static let standard = CommandOutputWriter { data, stream in
+        let handle = stream == .standardError ? FileHandle.standardError : FileHandle.standardOutput
         handle.write(data)
     }
-}
 
-private struct StreamLineBuffer: Sendable {
-    struct Update: Sendable {
-        let records: [LineRecord]
-        let hasOpenLine: Bool
-    }
-
-    private var pending = Data()
-
-    mutating func append(_ data: Data, startTime: Date) -> Update {
-        var records: [LineRecord] = []
-
-        for byte in data {
-            if byte == 0x0A {
-                if let record = Self.makeRecord(from: pending, startTime: startTime) {
-                    records.append(record)
-                }
-                pending.removeAll(keepingCapacity: true)
-            } else {
-                pending.append(byte)
-            }
-        }
-
-        return Update(records: records, hasOpenLine: !pending.isEmpty)
-    }
-
-    mutating func flushFinalLine(startTime: Date) -> [LineRecord] {
-        defer { pending.removeAll(keepingCapacity: false) }
-        guard let record = Self.makeRecord(from: pending, startTime: startTime) else {
-            return []
-        }
-        return [record]
-    }
-
-    private static func makeRecord(from lineData: Data, startTime: Date) -> LineRecord? {
-        guard !lineData.isEmpty,
-              let raw = String(data: lineData, encoding: .utf8),
-              !raw.isEmpty else {
-            return nil
-        }
-
-        let line = raw.hasSuffix("\r") ? String(raw.dropLast()) : raw
-        guard !line.isEmpty else { return nil }
-
-        let offset = Date().timeIntervalSince(startTime)
-        return LineRecord(
-            textHash: LineHash.hash(line),
-            normalizedHash: LineHash.normalizedHash(line),
-            offsetSeconds: offset
-        )
-    }
-}
-
-// MARK: - Thread-safe wrapper
-
-final class LockIsolated<Value: Sendable>: @unchecked Sendable {
-    private var _value: Value
-    private let lock = NSLock()
-
-    init(_ value: Value) { _value = value }
-
-    func withLock<T>(_ body: (inout Value) -> T) -> T {
-        lock.lock()
-        defer { lock.unlock() }
-        return body(&_value)
+    func write(_ data: Data, to stream: CommandOutputStream) {
+        write(data, stream)
     }
 }

@@ -32,7 +32,7 @@ enum ProgressBarStyle: Sendable {
 ///
 /// Layered style uses solid fill for confirmed progress and shaded fill for
 /// predicted-only progress. Solid style fills predicted progress with one glyph.
-final class ProgressRenderer: @unchecked Sendable {
+final class ProgressRenderer: ProgressRendering, @unchecked Sendable {
     private enum BarGlyphs {
         static let confirmed = "\u{2588}" // █
         static let predicted = "\u{2592}" // ▒
@@ -47,7 +47,7 @@ final class ProgressRenderer: @unchecked Sendable {
     private var lastDrawTime: TimeInterval = 0
     private let minDrawInterval: TimeInterval = 0.2
     private var barVisible = false
-    private var outputHasOpenLine = false
+    private var outputContainsPartialLine = false
 
     init(color: BarColor = .green, style: ProgressBarStyle = .layered) {
         let terminal = Self.openTerminal()
@@ -61,35 +61,38 @@ final class ProgressRenderer: @unchecked Sendable {
         terminal != nil
     }
 
-    // MARK: - Public API
+    // MARK: - Rendering API
 
-    /// Update the progress bar. Thread-safe, throttled.
-    func update(progress: ProgressFill, eta: Double) {
+    func update(progress: ProgressFill, remainingTime: Double) {
         lock.lock()
         defer { lock.unlock() }
 
-        guard terminal != nil, !outputHasOpenLine else { return }
+        guard terminal != nil, !outputContainsPartialLine else { return }
 
         let now = ProcessInfo.processInfo.systemUptime
         guard now - lastDrawTime >= minDrawInterval else { return }
         lastDrawTime = now
 
-        draw(progress: progress, eta: eta)
+        draw(progress: progress, remainingTime: remainingTime)
     }
 
-    /// Draw immediately, ignoring throttle. Thread-safe.
-    func forceUpdate(progress: ProgressFill, eta: Double) {
+    func forceUpdate(progress: ProgressFill, remainingTime: Double) {
         lock.lock()
         defer { lock.unlock() }
 
         guard terminal != nil else { return }
         lastDrawTime = ProcessInfo.processInfo.systemUptime
-        draw(progress: progress, eta: eta)
+        draw(progress: progress, remainingTime: remainingTime)
     }
 
-    /// Atomically: clear bar, write raw output, then redraw when on a fresh line.
-    func writeOutputAndRedraw(data: Data, isStderr: Bool, progress: ProgressFill,
-                              eta: Double, hasOpenLine: Bool) {
+    /// Keep command output and progress redraws from interleaving on the terminal.
+    func writeOutputAndRedraw(
+        rawOutput: Data,
+        stream: CommandOutputStream,
+        progress: ProgressFill,
+        remainingTime: Double,
+        containsPartialLine: Bool
+    ) {
         lock.lock()
         defer { lock.unlock() }
 
@@ -98,15 +101,14 @@ final class ProgressRenderer: @unchecked Sendable {
             barVisible = false
         }
 
-        writeCommandOutput(data, isStderr: isStderr)
-        outputHasOpenLine = hasOpenLine
+        writeCommandOutput(rawOutput, to: stream)
+        outputContainsPartialLine = containsPartialLine
 
-        guard terminal != nil, !outputHasOpenLine else { return }
+        guard terminal != nil, !outputContainsPartialLine else { return }
         lastDrawTime = ProcessInfo.processInfo.systemUptime
-        draw(progress: progress, eta: eta)
+        draw(progress: progress, remainingTime: remainingTime)
     }
 
-    /// Clear the progress bar without printing a summary. Used for signal cleanup.
     func cleanup() {
         lock.lock()
         defer { lock.unlock() }
@@ -116,50 +118,48 @@ final class ProgressRenderer: @unchecked Sendable {
         barVisible = false
     }
 
-    /// Show completion summary and clear the bar.
-    func finish(elapsed: Double, expected: Double) {
+    func finish(elapsed: Double, expectedDuration: Double) {
         lock.lock()
         defer { lock.unlock() }
 
         guard terminal != nil else { return }
 
-        // Clear the bar
         if barVisible {
             writeTerminal("\u{1B}[2K\r")
             barVisible = false
         }
-        if outputHasOpenLine {
+        if outputContainsPartialLine {
             writeTerminal("\n")
-            outputHasOpenLine = false
+            outputContainsPartialLine = false
         }
 
-        let delta = elapsed - expected
+        let delta = elapsed - expectedDuration
         let sign = delta >= 0 ? "+" : ""
-        writeTerminal("\u{1B}[32mDone in \(formatTime(elapsed))  (expected \(formatTime(expected)), delta \(sign)\(formatTime(delta)))\u{1B}[0m\n")
+        writeTerminal("\u{1B}[32mDone in \(formatTime(elapsed))  (expected \(formatTime(expectedDuration)), delta \(sign)\(formatTime(delta)))\u{1B}[0m\n")
     }
 
     // MARK: - Drawing
 
-    private func draw(progress: ProgressFill, eta: Double) {
+    private func draw(progress: ProgressFill, remainingTime: Double) {
         guard let terminalFD else { return }
         let termWidth = Self.terminalWidth(fileDescriptor: terminalFD)
         let bar = buildBar(
-            progress: progress, eta: eta,
+            progress: progress,
+            remainingTime: remainingTime,
             width: termWidth
         )
         writeTerminal("\u{1B}[2K\r\(bar)")
         barVisible = true
     }
 
-    private func buildBar(progress: ProgressFill, eta: Double, width: Int) -> String {
+    private func buildBar(progress: ProgressFill, remainingTime: Double, width: Int) -> String {
         let confirmedProgress = progress.confirmed
         let predictedProgress = progress.predicted
 
         let pct = String(format: "%3.0f%%", predictedProgress * 100)
-        let etaStr = eta > 0 ? "ETA \(formatTime(eta))" : "ETA 0s"
-        let suffix = "  \(pct)  \(etaStr)"
+        let remainingTimeString = remainingTime > 0 ? "ETA \(formatTime(remainingTime))" : "ETA 0s"
+        let suffix = "  \(pct)  \(remainingTimeString)"
 
-        // Bar width: total width minus brackets, suffix, and padding
         let barWidth = max(10, width - suffix.count - 3)
         let predictedWidth = Int(Double(barWidth) * predictedProgress)
 
@@ -189,8 +189,8 @@ final class ProgressRenderer: @unchecked Sendable {
         terminal?.write(Data(string.utf8))
     }
 
-    private func writeCommandOutput(_ data: Data, isStderr: Bool) {
-        let handle = isStderr ? FileHandle.standardError : FileHandle.standardOutput
+    private func writeCommandOutput(_ data: Data, to stream: CommandOutputStream) {
+        let handle = stream == .standardError ? FileHandle.standardError : FileHandle.standardOutput
         handle.write(data)
     }
 

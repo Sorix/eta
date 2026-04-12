@@ -18,16 +18,23 @@ Always pipe `swift build` output through `xcbeautify` for readable build output.
 ```
 Sources/
 ├── ProcessProgress/         # Library target, no ArgumentParser dependency
-│   ├── Models.swift         # CommandHistory, Run, LineRecord, command/line hashing
+│   ├── Models.swift         # CommandHistory, CommandRun, LineRecord, hashing, normalization
 │   ├── HistoryStore.swift   # JSON load/save, pruning, line downsampling
-│   ├── CommandRunner.swift  # Process wrapper, line timestamping, normalization
+│   ├── CommandRunner.swift  # Process wrapper, output chunks, line timestamping
+│   ├── OutputLineBuffer.swift # Deterministic stdout/stderr line buffering
 │   ├── LineMatcher.swift    # Exact hash → normalized hash fallback matching
-│   ├── EstimateCalculator.swift # Baseline weighted mean ETA and reference offsets
-│   └── TimelineProgressEstimator.swift # Cached current-log progress estimation
-└── eta-cli/                 # Executable target "eta"
-    ├── BarColor+ArgumentParser.swift # ArgumentParser conformance for BarColor
-    ├── ETA.swift            # @main, ArgumentParser command, all CLI flags
-    └── ProgressRenderer.swift # ANSI progress bar on /dev/tty, TTY detection, BarColor
+│   ├── ReferenceTimeline.swift # Baseline weighted mean duration and reference offsets
+│   ├── TimelineProgressEstimator.swift # Cached current-log progress estimation
+│   └── LockIsolated.swift   # Internal lock-protected storage helper
+├── EtaCLI/                  # Library target with ArgumentParser dependency
+│   ├── ETA.swift            # ArgumentParser command and all CLI flags
+│   ├── CommandRunCoordinator.swift # History/run/render orchestration
+│   ├── ProgressRenderLoop.swift # 5 fps progress redraw timer
+│   ├── SignalTrap.swift     # SIGINT/SIGTERM cleanup and re-raise
+│   ├── ProgressRenderer.swift # ANSI progress bar on /dev/tty, TTY detection, BarColor
+│   └── BarColor+ArgumentParser.swift # ArgumentParser conformance for BarColor
+└── eta-cli/                 # Thin executable target "eta"
+    └── main.swift           # Calls ETA.main()
 ```
 
 ## CLI Flags
@@ -59,7 +66,7 @@ eta <command>              Run a command with progress tracking
 - Progress bar writes to the controlling terminal (`/dev/tty`) — wrapped command stdout/stderr stay clean for piping/logging
 - Line matching: exact MD5 hash first, normalized fallback (numeric runs collapsed, whitespace collapsed)
 - Command keys stored as SHA256 hashes and lines stored as MD5 hashes (not raw text) for privacy — `Insecure.MD5` is fine for line matching (one-way, collisions harmless)
-- ETA: exponential weighted mean (α=0.3), recent runs weighted higher via `EstimateCalculator`
+- ETA: exponential weighted mean (α=0.3), recent runs weighted higher via `ReferenceTimeline`
 - Progress bar: `TimelineProgressEstimator` returns confirmed progress from matched historical lines plus predicted progress from timer projection; renderer draws confirmed as solid fill, predicted-only as shaded fill, and empty progress as spaces; `--solid` draws predicted progress as one solid fill; ETA is based on predicted progress
 - Atomic clear→write→redraw under lock prevents timer/output races
 - History: JSON files keyed by SHA256 of the command key (`--name` or command string) and storing only that hash
@@ -100,7 +107,7 @@ Historical runs          Current run
                       └────────────┘
 ```
 
-1. **EstimateCalculator** computes a baseline expected duration as the exponential weighted mean across all stored runs
+1. **ReferenceTimeline** computes a baseline expected duration as the exponential weighted mean across all stored runs
 2. **LineMatcher** maps each live output line to the reference run (most recent successful run) — exact MD5 hash match first, then normalized hash fallback
 3. **TimelineProgressEstimator** tracks the furthest matched reference line ("confirmed" progress) and projects a timer forward from the last correction point ("predicted" progress)
 4. **ProgressRenderer** draws the bar on `/dev/tty` at 5 fps, with atomic clear-write-redraw under a lock to prevent races between timer updates and output lines

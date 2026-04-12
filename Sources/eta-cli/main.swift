@@ -1,0 +1,3 @@
+import EtaCLI
+
+ETA.main()

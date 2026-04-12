@@ -8,15 +8,21 @@ public struct ProgressEstimate: Sendable, Equatable {
     /// Estimated seconds remaining from this snapshot, based on predicted progress.
     ///
     /// Negative means the current run has passed the adjusted expectation.
-    public let eta: Double
+    public let remainingTime: Double
 
     /// The total wall-clock duration implied by the latest timeline correction.
-    public let adjustedExpectedTotal: Double
+    public let adjustedExpectedTotalDuration: Double
 
-    public init(progress: ProgressFill, eta: Double, adjustedExpectedTotal: Double) {
+    /// Creates a progress estimate snapshot.
+    ///
+    /// - Parameters:
+    ///   - progress: Progress split by confidence level.
+    ///   - remainingTime: Estimated seconds remaining from this snapshot.
+    ///   - adjustedExpectedTotalDuration: Total wall-clock duration implied by the latest timeline correction.
+    public init(progress: ProgressFill, remainingTime: Double, adjustedExpectedTotalDuration: Double) {
         self.progress = progress
-        self.eta = eta
-        self.adjustedExpectedTotal = adjustedExpectedTotal
+        self.remainingTime = remainingTime
+        self.adjustedExpectedTotalDuration = adjustedExpectedTotalDuration
     }
 }
 
@@ -28,6 +34,11 @@ public struct ProgressFill: Sendable, Equatable {
     /// Timer projection from the latest correction point.
     public let predicted: Double
 
+    /// Creates normalized progress values.
+    ///
+    /// - Parameters:
+    ///   - confirmed: Progress backed by the furthest matched historical line.
+    ///   - predicted: Timer-projected progress.
     public init(confirmed: Double, predicted: Double) {
         self.confirmed = Self.clamp(confirmed)
         self.predicted = Self.clamp(max(confirmed, predicted))
@@ -52,7 +63,7 @@ public struct ProgressFill: Sendable, Equatable {
 /// ahead. If it arrives at 30s, they are shifted 20s behind. Newer milestones may
 /// move progress backward when the command is slower than expected.
 public final class TimelineProgressEstimator: @unchecked Sendable {
-    private let calculator: EstimateCalculator
+    private let referenceTimeline: ReferenceTimeline
     private let lock = NSLock()
 
     /// Number of records already consumed from the append-only current log.
@@ -67,23 +78,34 @@ public final class TimelineProgressEstimator: @unchecked Sendable {
     /// The furthest matched milestone as seconds on the baseline timeline.
     private var confirmedExpectedOffset: Double = 0
 
+    /// Creates an estimator from optional command history.
+    ///
+    /// - Parameter history: Stored command history for the command currently running.
     public convenience init(history: CommandHistory?) {
-        self.init(archiveRuns: history?.runs ?? [])
+        self.init(runs: history?.runs ?? [])
     }
 
-    public init(archiveRuns: [Run]) {
-        self.calculator = EstimateCalculator(runs: archiveRuns)
+    /// Creates an estimator from successful command runs.
+    ///
+    /// - Parameter runs: Successful runs ordered from oldest to newest.
+    public init(runs: [CommandRun]) {
+        self.referenceTimeline = ReferenceTimeline(runs: runs)
     }
 
+    /// Whether the estimator has historical data to use.
     public var hasHistory: Bool {
-        calculator.hasHistory
+        referenceTimeline.hasHistory
     }
 
-    public var expectedTotal: Double {
-        calculator.expectedTotal
+    /// The weighted expected total duration before live timeline corrections.
+    public var expectedTotalDuration: Double {
+        referenceTimeline.expectedDuration
     }
 
     /// Returns a live estimate using the current cached log state.
+    ///
+    /// - Parameter elapsed: Seconds elapsed in the current command run.
+    /// - Returns: Current progress and remaining-time estimate.
     public func estimate(elapsed: Double) -> ProgressEstimate {
         lock.lock()
         defer { lock.unlock() }
@@ -94,6 +116,11 @@ public final class TimelineProgressEstimator: @unchecked Sendable {
     ///
     /// This is the test-friendly API. The cache tracks how much of `currentLog` was
     /// already processed and resets if a shorter log is passed.
+    ///
+    /// - Parameters:
+    ///   - currentLog: Append-only line records from the current command run.
+    ///   - elapsed: Seconds elapsed in the current command run.
+    /// - Returns: Current progress and remaining-time estimate.
     @discardableResult
     public func estimate(currentLog: [LineRecord], elapsed: Double) -> ProgressEstimate {
         lock.lock()
@@ -112,6 +139,11 @@ public final class TimelineProgressEstimator: @unchecked Sendable {
     }
 
     /// Adds one current log record and returns an estimate.
+    ///
+    /// - Parameters:
+    ///   - line: The line record observed in the current command run.
+    ///   - elapsed: Optional elapsed time override. Defaults to `line.offsetSeconds`.
+    /// - Returns: Current progress and remaining-time estimate.
     @discardableResult
     public func observeCurrentLine(_ line: LineRecord, elapsed: Double? = nil) -> ProgressEstimate {
         lock.lock()
@@ -132,7 +164,7 @@ public final class TimelineProgressEstimator: @unchecked Sendable {
     }
 
     private func observeCurrentLineWithoutLock(_ line: LineRecord) {
-        guard let match = calculator.referenceMatch(for: line, after: lastMatchedReferenceIndex),
+        guard let match = referenceTimeline.match(line, after: lastMatchedReferenceIndex),
               match.index > lastMatchedReferenceIndex else {
             return
         }
@@ -150,25 +182,25 @@ public final class TimelineProgressEstimator: @unchecked Sendable {
     }
 
     private func makeEstimate(elapsed: Double) -> ProgressEstimate {
-        guard calculator.expectedTotal > 0 else {
+        guard referenceTimeline.expectedDuration > 0 else {
             return ProgressEstimate(
                 progress: ProgressFill(confirmed: 0, predicted: 0),
-                eta: 0,
-                adjustedExpectedTotal: 0
+                remainingTime: 0,
+                adjustedExpectedTotalDuration: 0
             )
         }
 
         let virtualElapsed = max(0, elapsed + timelineOffset)
         let predictedElapsed = max(confirmedExpectedOffset, virtualElapsed)
-        let confirmedProgress = confirmedExpectedOffset / calculator.expectedTotal
-        let predictedProgress = predictedElapsed / calculator.expectedTotal
-        let eta = calculator.expectedTotal - predictedElapsed
-        let adjustedExpectedTotal = max(0, calculator.expectedTotal - timelineOffset)
+        let confirmedProgress = confirmedExpectedOffset / referenceTimeline.expectedDuration
+        let predictedProgress = predictedElapsed / referenceTimeline.expectedDuration
+        let remainingTime = referenceTimeline.expectedDuration - predictedElapsed
+        let adjustedExpectedTotalDuration = max(0, referenceTimeline.expectedDuration - timelineOffset)
 
         return ProgressEstimate(
             progress: ProgressFill(confirmed: confirmedProgress, predicted: predictedProgress),
-            eta: eta,
-            adjustedExpectedTotal: adjustedExpectedTotal
+            remainingTime: remainingTime,
+            adjustedExpectedTotalDuration: adjustedExpectedTotalDuration
         )
     }
 }

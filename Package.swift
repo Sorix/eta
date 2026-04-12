@@ -13,12 +13,17 @@ let package = Package(
     ],
     targets: [
         .target(name: "ProcessProgress"),
-        .executableTarget(
-            name: "eta",
+        .target(
+            name: "EtaCLI",
             dependencies: [
                 "ProcessProgress",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ],
+            path: "Sources/EtaCLI"
+        ),
+        .executableTarget(
+            name: "eta",
+            dependencies: ["EtaCLI"],
             path: "Sources/eta-cli"
         ),
     ]
