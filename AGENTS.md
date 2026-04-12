@@ -147,11 +147,6 @@ Before the fallback hash, lines are normalized:
 
 All digit runs collapse to `N`. All whitespace runs collapse to a single space.
 
-## Git Conventions
-
-- Commit at each logical step (one concern per commit)
-- One-line commit messages — short and descriptive
-
 ## Maintaining This File
 
 Keep AGENTS.md up to date when making important structural changes: new source files, new dependencies, new CLI flags, changed build steps, or altered design decisions. Don't update for minor refactors or bug fixes.
