@@ -58,27 +58,18 @@ The progress bar has two layers: **solid fill** for lines already matched agains
 ## Install
 Software is in alpha-test, releases will be published later.
 
-### From source
+### User install
 
 ```sh
 git clone https://github.com/Sorix/eta
 cd eta
-make install  # builds release and installs to ~/.local/bin
+make install
 ```
 
-To install elsewhere:
-```sh
-make install PREFIX=~/.local
-```
+### System install
 
-For a system install:
 ```sh
 SUDO=sudo PREFIX=/usr/local make install
-```
-
-Make sure the install directory is in your `PATH`. For the default install location, add this to your shell profile if needed:
-```sh
-export PATH="$HOME/.local/bin:$PATH"
 ```
 
 ### Uninstall
