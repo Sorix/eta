@@ -58,10 +58,10 @@ jobs:
           tar -xJf "$archive" -C /usr/local/bin
           rm "$archive"
 
-      - name: Build tests
+      - name: Perform unit tests
         run: |
           set -o pipefail
-          NSUnbufferedIO=YES swift test --parallel 2>&1 | xcbeautify --renderer github-actions -q
+          NSUnbufferedIO=YES swift test --parallel 2>&1 | xcbeautify --renderer github-actions
 
   build:
     name: Release Build (${{ matrix.os }})
