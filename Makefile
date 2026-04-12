@@ -1,6 +1,19 @@
 SHELL := /bin/bash
 
-PREFIX ?= $(HOME)/.local
+UNAME_S := $(shell uname -s)
+UNAME_M := $(shell uname -m)
+
+ifeq ($(UNAME_S),Darwin)
+  ifeq ($(UNAME_M),arm64)
+    DEFAULT_PREFIX := /opt/homebrew
+  else
+    DEFAULT_PREFIX := /usr/local
+  endif
+else
+  DEFAULT_PREFIX := $(HOME)/.local
+endif
+
+PREFIX ?= $(DEFAULT_PREFIX)
 SUDO ?=
 
 build:

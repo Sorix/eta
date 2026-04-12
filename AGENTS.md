@@ -12,7 +12,7 @@ scripts/ci/test-simulate.sh .build/release/eta      # real simulate.sh test
 scripts/ci/test-large-output.sh .build/release/eta  # large-output performance test
 scripts/ci/test-stdio-clean.sh .build/release/eta   # stdout/stderr cleanliness test
 swift run eta 'your command here'    # run directly
-make install                         # install to ~/.local/bin
+make install                         # install to conventional user prefix
 SUDO=sudo PREFIX=/usr/local make install  # system install
 ```
 
