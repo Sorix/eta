@@ -48,7 +48,7 @@ public struct HistoryStore: Sendable {
 
     static let maxLinesPerRun = 5000
 
-    public func save(_ history: CommandHistory, maxRuns: Int = 10) throws {
+    public func save(_ history: CommandHistory, command: String, maxRuns: Int = 10) throws {
         guard maxRuns > 0 else {
             throw HistoryStoreError.invalidMaxRuns(maxRuns)
         }
@@ -67,7 +67,7 @@ public struct HistoryStore: Sendable {
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let data = try encoder.encode(pruned)
-        try data.write(to: filePath(forFingerprint: history.commandHash), options: .atomic)
+        try data.write(to: filePath(for: command), options: .atomic)
     }
 
     /// Evenly sample lines across the full run, always keeping first and last.

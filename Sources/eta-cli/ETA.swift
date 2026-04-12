@@ -154,14 +154,14 @@ struct ETA: ParsableCommand {
 
         // Only save successful runs — failed runs are useless for estimation
         if output.exitCode == 0 {
-            var hist = history ?? CommandHistory(command: key, runs: [])
+            var hist = history ?? CommandHistory()
             hist.runs.append(Run(
                 date: Date(),
                 totalDuration: output.totalDuration,
                 lines: output.lines
             ))
             do {
-                try store.save(hist, maxRuns: maxRuns)
+                try store.save(hist, command: key, maxRuns: maxRuns)
             } catch {
                 printStderr("eta: warning: failed to save history: \(error.localizedDescription)")
             }
