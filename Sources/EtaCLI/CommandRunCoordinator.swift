@@ -131,7 +131,10 @@ struct CommandRunCoordinator {
             dateProvider: dateProvider
         )) : nil
         let signalTrap = shouldRenderProgress
-            ? signalTrapFactory { renderer.cleanup() }
+            ? signalTrapFactory {
+                renderLoop?.cancel()
+                renderer.cleanup()
+            }
             : nil
 
         var didEndRenderingLifecycle = false
@@ -159,16 +162,17 @@ struct CommandRunCoordinator {
             throw error
         }
 
+        guard output.exitCode == 0 else {
+            endRenderingLifecycle(cleanupOnly: true)
+            throw ExitCode(output.exitCode)
+        }
+
         endRenderingLifecycle(cleanupOnly: false)
         if shouldRenderProgress {
             renderer.finish(
                 elapsed: output.totalDuration,
                 expectedDuration: progressEstimator.expectedTotalDuration
             )
-        }
-
-        guard output.exitCode == 0 else {
-            throw ExitCode(output.exitCode)
         }
 
         saveSuccessfulRun(output, history: history, request: request)
