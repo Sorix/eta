@@ -21,7 +21,7 @@ final class ProgressRenderLoop: ProgressRenderLooping, @unchecked Sendable {
             let estimate = estimator.estimate(elapsed: elapsed)
             renderer.update(
                 progress: estimate.progress,
-                remainingTime: estimate.adjustedExpectedTotalDuration > 0 ? estimate.remainingTime : nil,
+                remainingTime: estimate.displayRemainingTime,
                 elapsedTime: elapsed
             )
         }
