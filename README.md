@@ -63,12 +63,22 @@ Software is in alpha-test, releases will be published later.
 ```sh
 git clone https://github.com/Sorix/eta
 cd eta
-make install  # builds release and installs to /usr/local/bin
+make install  # builds release and installs to ~/.local/bin
 ```
 
 To install elsewhere:
 ```sh
 make install PREFIX=~/.local
+```
+
+For a system install:
+```sh
+SUDO=sudo PREFIX=/usr/local make install
+```
+
+Make sure the install directory is in your `PATH`. For the default install location, add this to your shell profile if needed:
+```sh
+export PATH="$HOME/.local/bin:$PATH"
 ```
 
 ### Uninstall
