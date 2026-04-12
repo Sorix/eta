@@ -77,7 +77,8 @@ eta <command>              Run a command with progress tracking
 - Progress bar: `TimelineProgressEstimator` returns confirmed progress from matched historical lines plus predicted progress from timer projection; renderer draws confirmed as solid fill, predicted-only as shaded fill, and empty progress as spaces; `--solid` draws predicted progress as one solid fill; ETA is based on predicted progress
 - First run: before a command has usable history, a one-shot yellow header is printed to `/dev/tty` at the top, then command output flows normally without a progress bar; this header intentionally ignores `--color`
 - Atomic clear→write→redraw under lock prevents timer/output races
-- History: JSON files keyed by SHA256 of the command key (`--name` or command string) and storing only that hash
+- Command key resolution: when no `--name` is given, the first token is resolved to build a stable key. Path-based invocations (`./test.sh`, `../build.sh`) are canonicalized via C `realpath()` — the script path uniquely identifies the work. Bare-name invocations (`make`, `swift build`) are resolved via `which` and prefixed with the working directory, since the same executable in different projects does different work. Shell aliases, functions, and builtins can't be resolved, so they are treated like bare names (cwd-prefixed).
+- History: JSON files keyed by SHA256 of the command key (`--name` or resolved command string) and storing only that hash
   - macOS: `~/Library/Caches/eta/`
   - Linux: `$XDG_CACHE_HOME/eta/` or `~/.cache/eta/`
 - Tests and CI may set `ETA_CACHE_DIR` to isolate history files in a temporary directory; this is a hidden test hook, not a user-facing CLI flag
