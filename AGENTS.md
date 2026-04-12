@@ -12,10 +12,12 @@ scripts/ci/test-simulate.sh .build/release/eta      # real simulate.sh test
 scripts/ci/test-large-output.sh .build/release/eta  # large-output performance test
 scripts/ci/test-stdio-clean.sh .build/release/eta   # stdout/stderr cleanliness test
 swift run eta 'your command here'    # run directly
-make install                         # install to /usr/local/bin
+make install                         # install to ~/.local/bin
+SUDO=sudo PREFIX=/usr/local make install  # system install
 ```
 
 Always pipe `swift build` output through `xcbeautify` for readable build output.
+The Makefile intentionally runs raw `swift build -c release` so installing from source does not require `xcbeautify`.
 CI runs release build, Swift tests, the real simulate example, the large-output performance test, and stdout/stderr cleanliness checks on Linux and macOS pull request jobs. The macOS image uses preinstalled `xcbeautify`; Linux installs it in CI.
 
 ## Project Structure

@@ -1,16 +1,17 @@
 SHELL := /bin/bash
 
-PREFIX ?= /usr/local
+PREFIX ?= $(HOME)/.local
+SUDO ?=
 
 build:
-	set -o pipefail; swift build -c release 2>&1 | xcbeautify --is-ci
+	swift build -c release
 
 install: build
-	install -d $(PREFIX)/bin
-	install .build/release/eta $(PREFIX)/bin/eta
+	$(SUDO) install -d "$(PREFIX)/bin"
+	$(SUDO) install .build/release/eta "$(PREFIX)/bin/eta"
 
 uninstall:
-	rm -f $(PREFIX)/bin/eta
+	$(SUDO) rm -f "$(PREFIX)/bin/eta"
 
 clean:
 	swift package clean
