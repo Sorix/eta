@@ -66,16 +66,11 @@ cd eta
 make install
 ```
 
-### System install
+### Installation
 
 ```sh
-SUDO=sudo PREFIX=/usr/local make install
-```
-
-### Uninstall
-
-```sh
-make uninstall
+make install # sudo required for macOS
+make uninstall # to uninstall
 ```
 
 ## Usage
