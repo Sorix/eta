@@ -13,7 +13,7 @@ scripts/ci/test-large-output.sh .build/release/eta  # large-output performance t
 scripts/ci/test-stdio-clean.sh .build/release/eta   # stdout/stderr cleanliness test
 swift run eta 'your command here'    # run directly
 make install                         # install to conventional user prefix
-SUDO=sudo PREFIX=/usr/local make install  # system install
+sudo make install                    # system install
 ```
 
 Always pipe `swift build` output through `xcbeautify` for readable build output.
