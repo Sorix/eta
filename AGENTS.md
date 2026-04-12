@@ -36,9 +36,11 @@ Sources/
 ├── EtaCLI/                  # Library target with ArgumentParser dependency
 │   ├── ETA.swift            # ArgumentParser command and all CLI flags
 │   ├── CommandRunCoordinator.swift # History/run/render orchestration
-│   ├── ProgressRenderLoop.swift # 5 fps progress redraw timer
+│   ├── ProgressRenderLoop.swift # 32 ms progress/status redraw timer
 │   ├── SignalTrap.swift     # SIGINT/SIGTERM cleanup and re-raise
-│   ├── ProgressRenderer.swift # ANSI progress bar on /dev/tty, TTY detection, BarColor
+│   ├── ProgressRenderer.swift # ANSI progress/status rendering on /dev/tty, TTY detection, BarColor
+│   ├── IndeterminateStatusRenderer.swift # Shimmered "Estimating" status while ETA is unknown
+│   ├── TerminalDefaultColors.swift # OSC terminal default foreground/background color query
 │   └── BarColor+ArgumentParser.swift # ArgumentParser conformance for BarColor
 └── eta-cli/                 # Thin executable target "eta"
     └── main.swift           # Calls ETA.main()
@@ -79,6 +81,7 @@ eta <command>              Run a command with progress tracking
 - Command keys stored as SHA256 hashes and lines stored as MD5 hashes (not raw text) for privacy — `Insecure.MD5` is fine for line matching (one-way, collisions harmless)
 - ETA: exponential weighted mean (α=0.3), recent runs weighted higher via `ReferenceTimeline`
 - Progress bar: `TimelineProgressEstimator` returns confirmed progress from matched historical lines plus predicted progress from timer projection; renderer draws confirmed as solid fill, predicted-only as shaded fill, and empty progress as spaces; `--solid` draws predicted progress as one solid fill; ETA is based on predicted progress
+- Unknown ETA status: before a command has usable history, the renderer shows a shimmered `• Estimating (<elapsed>)` status using terminal-default foreground/background color blending when available; this status intentionally ignores `--color`
 - Atomic clear→write→redraw under lock prevents timer/output races
 - History: JSON files keyed by SHA256 of the command key (`--name` or command string) and storing only that hash
   - macOS: `~/Library/Caches/eta/`
@@ -122,7 +125,7 @@ Historical runs          Current run
 1. **ReferenceTimeline** computes a baseline expected duration as the exponential weighted mean across all stored runs
 2. **LineMatcher** maps each live output line to the reference run (most recent successful run) — exact MD5 hash match first, then normalized hash fallback
 3. **TimelineProgressEstimator** tracks the furthest matched reference line ("confirmed" progress) and projects a timer forward from the last correction point ("predicted" progress)
-4. **ProgressRenderer** draws the bar on `/dev/tty` at 5 fps, with atomic clear-write-redraw under a lock to prevent races between timer updates and output lines
+4. **ProgressRenderer** draws the bar or unknown-ETA status on `/dev/tty` at a 32 ms cadence, with atomic clear-write-redraw under a lock to prevent races between timer updates and output lines
 
 ## Privacy Model
 

@@ -44,8 +44,10 @@ final class ProgressRenderer: ProgressRendering, @unchecked Sendable {
     private let terminalFD: Int32?
     private let color: BarColor
     private let style: ProgressBarStyle
+    private let terminalColors: TerminalDefaultColors?
+    private let indeterminateStatusRenderer = IndeterminateStatusRenderer(text: "Estimating")
     private var lastDrawTime: TimeInterval = 0
-    private let minDrawInterval: TimeInterval = 0.2
+    private let minDrawInterval: TimeInterval = IndeterminateStatusRenderer.frameInterval
     private var barVisible = false
     private var cursorHidden = false
     private var outputContainsPartialLine = false
@@ -56,6 +58,7 @@ final class ProgressRenderer: ProgressRendering, @unchecked Sendable {
         self.terminalFD = terminal?.fileDescriptor
         self.color = color
         self.style = style
+        self.terminalColors = terminal.flatMap { TerminalDefaultColorQuery.query(fileDescriptor: $0.fileDescriptor) }
     }
 
     var isEnabled: Bool {
@@ -142,9 +145,9 @@ final class ProgressRenderer: ProgressRendering, @unchecked Sendable {
         if expectedDuration > 0 {
             let delta = elapsed - expectedDuration
             let sign = delta >= 0 ? "+" : ""
-            writeTerminal("\u{1B}[32mDone in \(formatTime(elapsed))  (expected \(formatTime(expectedDuration)), delta \(sign)\(formatTime(delta)))\u{1B}[0m\n")
+            writeTerminal("\u{1B}[32mDone in \(Self.formatTime(elapsed))  (expected \(Self.formatTime(expectedDuration)), delta \(sign)\(Self.formatTime(delta)))\u{1B}[0m\n")
         } else {
-            writeTerminal("\u{1B}[32mDone in \(formatTime(elapsed))\u{1B}[0m\n")
+            writeTerminal("\u{1B}[32mDone in \(Self.formatTime(elapsed))\u{1B}[0m\n")
         }
     }
 
@@ -153,7 +156,7 @@ final class ProgressRenderer: ProgressRendering, @unchecked Sendable {
     private func draw(progress: ProgressFill, remainingTime: Double?, elapsedTime: Double) {
         guard let terminalFD else { return }
         let termWidth = Self.terminalWidth(fileDescriptor: terminalFD)
-        let bar = buildBar(
+        let bar = buildLine(
             progress: progress,
             remainingTime: remainingTime,
             elapsedTime: elapsedTime,
@@ -164,21 +167,68 @@ final class ProgressRenderer: ProgressRendering, @unchecked Sendable {
         barVisible = true
     }
 
-    private func buildBar(
+    private func buildLine(
         progress: ProgressFill,
         remainingTime: Double?,
         elapsedTime: Double,
         width: Int
     ) -> String {
-        let confirmedProgress = progress.confirmed
-        let predictedProgress = progress.predicted
-
         guard let remainingTime else {
-            let elapsedString = "Elapsed \(formatTime(elapsedTime))"
-            let padding = String(repeating: " ", count: max(0, width - elapsedString.count))
-            return "\(color.ansiCode)\(elapsedString)\(padding)\u{1B}[0m"
+            return indeterminateStatusRenderer.render(
+                elapsedText: Self.formatTime(elapsedTime),
+                elapsedTime: elapsedTime,
+                width: width,
+                terminalColors: terminalColors
+            )
         }
 
+        return Self.buildDeterminateBar(
+            progress: progress,
+            remainingTime: remainingTime,
+            width: width,
+            color: color,
+            style: style
+        )
+    }
+
+    /// Returns either the determinate ETA bar (`[██▒ ]  50%  ETA 5s`) or the
+    /// unknown-ETA status (`Estimating (22s)`) with ANSI styling applied.
+    static func buildBar(
+        progress: ProgressFill,
+        remainingTime: Double?,
+        elapsedTime: Double,
+        width: Int,
+        color: BarColor,
+        style: ProgressBarStyle
+    ) -> String {
+        guard let remainingTime else {
+            return IndeterminateStatusRenderer.render(
+                text: "Estimating",
+                elapsedText: formatTime(elapsedTime),
+                elapsedTime: elapsedTime,
+                width: width,
+                terminalColors: nil
+            )
+        }
+
+        return buildDeterminateBar(
+            progress: progress,
+            remainingTime: remainingTime,
+            width: width,
+            color: color,
+            style: style
+        )
+    }
+
+    private static func buildDeterminateBar(
+        progress: ProgressFill,
+        remainingTime: Double,
+        width: Int,
+        color: BarColor,
+        style: ProgressBarStyle
+    ) -> String {
+        let confirmedProgress = progress.confirmed
+        let predictedProgress = progress.predicted
         let pct = String(format: "%3.0f%%", predictedProgress * 100)
         let remainingTimeString = remainingTime > 0 ? "ETA \(formatTime(remainingTime))" : "ETA 0s"
         let suffix = "  \(pct)  \(remainingTimeString)"
@@ -229,7 +279,7 @@ final class ProgressRenderer: ProgressRendering, @unchecked Sendable {
         handle.write(data)
     }
 
-    private func formatTime(_ seconds: Double) -> String {
+    private static func formatTime(_ seconds: Double) -> String {
         let totalSeconds = Int(abs(seconds).rounded())
         let sign = seconds < 0 && totalSeconds > 0 ? "-" : ""
         if totalSeconds < 60 {
@@ -242,7 +292,7 @@ final class ProgressRenderer: ProgressRendering, @unchecked Sendable {
     }
 
     private static func openTerminal() -> (handle: FileHandle, fileDescriptor: Int32)? {
-        guard let handle = FileHandle(forWritingAtPath: "/dev/tty") else { return nil }
+        guard let handle = FileHandle(forUpdatingAtPath: "/dev/tty") else { return nil }
         let fileDescriptor = handle.fileDescriptor
         guard isatty(fileDescriptor) != 0 else { return nil }
         return (handle, fileDescriptor)

@@ -54,6 +54,9 @@ struct CommandRunCoordinatorTests {
 
         #expect(didThrow)
         #expect(harness.historyStore.saved.isEmpty)
+        #expect(harness.renderLoop.cancelCount == 1)
+        #expect(harness.signalTrap.cancelCount == 1)
+        #expect(harness.renderer.events == ["forceUpdate", "cleanup"])
     }
 
     @Test("quiet mode bypasses rendering and still records history")
