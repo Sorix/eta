@@ -33,19 +33,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Install Swift
+      - name: Setup Linux toolchain
+        if: runner.os == 'Linux'
+        run: |
+          scripts/ci/install-xcbeautify.sh
+      - name: Install Swift (Linux)
+        if: runner.os == 'Linux'
         uses: swift-actions/setup-swift@v2
         with:
           swift-version: ${{ env.SWIFT_VERSION }}
 
-      - name: Install xcbeautify on Linux
-        if: runner.os == 'Linux'
-        run: scripts/ci/install-xcbeautify.sh
-
       - name: Run Swift tests
         run: |
           set -o pipefail
-          swift test --parallel 2>&1 | xcbeautify --is-ci
+          swift test --parallel 2>&1 | xcbeautify
 
   build:
     name: Release Build (${{ matrix.os }})
@@ -62,19 +63,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Install Swift
+      - name: Setup Linux toolchain
+        if: runner.os == 'Linux'
+        run: |
+          scripts/ci/install-xcbeautify.sh
+      - name: Install Swift (Linux)
+        if: runner.os == 'Linux'
         uses: swift-actions/setup-swift@v2
         with:
           swift-version: ${{ env.SWIFT_VERSION }}
 
-      - name: Install xcbeautify on Linux
-        if: runner.os == 'Linux'
-        run: scripts/ci/install-xcbeautify.sh
-
       - name: Build release
         run: |
           set -o pipefail
-          swift build -c release 2>&1 | xcbeautify --is-ci
+          swift build -c release 2>&1 | xcbeautify
 
       - name: Upload eta binary
         uses: actions/upload-artifact@v7
