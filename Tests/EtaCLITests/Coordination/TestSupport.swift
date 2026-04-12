@@ -104,6 +104,10 @@ final class FakeRenderer: ProgressRendering, @unchecked Sendable {
         self.isEnabled = isEnabled
     }
 
+    func writeFirstRunHeader() {
+        events.append("writeFirstRunHeader")
+    }
+
     func update(progress: ProgressFill, remainingTime: Double?, elapsedTime: Double) {
         events.append("update")
         remainingTimes.append(remainingTime)

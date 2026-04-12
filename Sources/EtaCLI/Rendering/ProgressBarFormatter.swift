@@ -9,27 +9,16 @@ enum ProgressBarFormatter {
         static let empty = " "
     }
 
-    /// Returns a determinate ETA bar or the unknown-ETA status line.
+    /// Returns a determinate ETA bar.
     static func buildLine(
         progress: ProgressFill,
-        remainingTime: Double?,
+        remainingTime: Double,
         elapsedTime: Double,
         width: Int,
         color: BarColor,
-        style: ProgressBarStyle,
-        terminalColors: TerminalDefaultColors?
+        style: ProgressBarStyle
     ) -> String {
-        guard let remainingTime else {
-            return IndeterminateStatusRenderer.render(
-                text: "Estimating",
-                elapsedText: ProgressTimeFormatter.format(elapsedTime),
-                elapsedTime: elapsedTime,
-                width: width,
-                terminalColors: terminalColors
-            )
-        }
-
-        return buildDeterminateBar(
+        buildDeterminateBar(
             progress: progress,
             remainingTime: remainingTime,
             width: width,

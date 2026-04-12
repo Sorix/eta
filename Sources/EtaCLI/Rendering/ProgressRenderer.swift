@@ -11,19 +11,16 @@ final class ProgressRenderer: ProgressRendering, @unchecked Sendable {
     private let terminal: TerminalHandle?
     private let color: BarColor
     private let style: ProgressBarStyle
-    private let terminalColors: TerminalDefaultColors?
     private var lastDrawTime: TimeInterval = 0
-    private let minDrawInterval: TimeInterval = IndeterminateStatusRenderer.frameInterval
+    private let minDrawInterval: TimeInterval = 0.032
     private var barVisible = false
     private var cursorHidden = false
     private var outputContainsPartialLine = false
 
     init(color: BarColor = .green, style: ProgressBarStyle = .layered) {
-        let terminal = TerminalHandle.open()
-        self.terminal = terminal
+        self.terminal = TerminalHandle.open()
         self.color = color
         self.style = style
-        self.terminalColors = terminal.flatMap { TerminalDefaultColorQuery.query(fileDescriptor: $0.fileDescriptor) }
     }
 
     var isEnabled: Bool {
@@ -31,6 +28,11 @@ final class ProgressRenderer: ProgressRendering, @unchecked Sendable {
     }
 
     // MARK: - Rendering API
+
+    func writeFirstRunHeader() {
+        guard let terminal else { return }
+        terminal.write("\u{1B}[33mThere is no history for this command — unable to show estimation data. This run will be used for future estimates.\u{1B}[0m\n\n")
+    }
 
     func update(progress: ProgressFill, remainingTime: Double?, elapsedTime: Double) {
         lock.lock()
@@ -133,12 +135,11 @@ final class ProgressRenderer: ProgressRendering, @unchecked Sendable {
     ) -> String {
         ProgressBarFormatter.buildLine(
             progress: progress,
-            remainingTime: remainingTime,
+            remainingTime: remainingTime ?? 0,
             elapsedTime: elapsedTime,
             width: width,
             color: color,
-            style: style,
-            terminalColors: terminalColors
+            style: style
         )
     }
 
