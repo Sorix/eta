@@ -26,5 +26,17 @@ let package = Package(
             dependencies: ["EtaCLI"],
             path: "Sources/eta-cli"
         ),
+        .testTarget(
+            name: "ProcessProgressTests",
+            dependencies: ["ProcessProgress"]
+        ),
+        .testTarget(
+            name: "EtaCLITests",
+            dependencies: [
+                "EtaCLI",
+                "ProcessProgress",
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+            ]
+        ),
     ]
 )

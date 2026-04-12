@@ -59,8 +59,10 @@ public struct ETA: ParsableCommand {
     ///
     /// - Throws: Errors from history operations, command execution, or non-zero wrapped command exits.
     public func run() throws {
-        let store = HistoryStore(appIdentifier: "eta")
+        try run(historyStore: Self.makeHistoryStore())
+    }
 
+    func run(historyStore store: any HistoryStoring) throws {
         if let clear {
             try store.clear(for: clear)
             Self.printStdout("Cleared history for '\(clear)'.")
@@ -81,6 +83,13 @@ public struct ETA: ParsableCommand {
                 progressBarStyle: solid ? .solid : .layered
             ))
         }
+    }
+
+    static func makeHistoryStore(environment: [String: String] = ProcessInfo.processInfo.environment) -> HistoryStore {
+        if let cacheDirectory = environment["ETA_CACHE_DIR"], !cacheDirectory.isEmpty {
+            return HistoryStore(directory: URL(fileURLWithPath: cacheDirectory, isDirectory: true))
+        }
+        return HistoryStore(appIdentifier: "eta")
     }
 
     private static func printStdout(_ message: String) {
