@@ -80,6 +80,22 @@ func TestAppRunUsesNameOrResolvedCommandKey(t *testing.T) {
 		}
 	})
 
+	t.Run("empty custom name", func(t *testing.T) {
+		app := testApp()
+		store := app.Store.(*fakeEtaStore)
+		runner := app.CommandRunner.(*fakeEtaRunner)
+		runner.output = process.Output{TotalDuration: 1}
+
+		code := app.Run([]string{"--name", "", "swift build"})
+
+		if code != 0 {
+			t.Fatalf("exit code = %d; want 0", code)
+		}
+		if got := store.saved[0].commandKey; got != "" {
+			t.Fatalf("saved command key = %q; want empty custom name", got)
+		}
+	})
+
 	t.Run("resolved command", func(t *testing.T) {
 		app := testApp()
 		store := app.Store.(*fakeEtaStore)

@@ -60,6 +60,7 @@ func (t *SignalTrap) Cancel() {
 	t.cancelOnce.Do(func() {
 		close(t.cancel)
 	})
+	<-t.done
 }
 
 // Done is closed after the trap goroutine exits.

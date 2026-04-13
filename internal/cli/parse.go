@@ -22,8 +22,11 @@ const (
 type Request struct {
 	Mode            Mode
 	Command         string
+	CommandSet      bool
 	Name            string
+	NameSet         bool
 	ClearCommand    string
+	ClearCommandSet bool
 	Quiet           bool
 	Solid           bool
 	MaximumRunCount int
@@ -55,6 +58,8 @@ func Parse(args []string) (Request, error) {
 	if err := validateColor(request.Color); err != nil {
 		return Request{}, err
 	}
+	request.NameSet = flags.Changed("name")
+	request.ClearCommandSet = flags.Changed("clear")
 	if request.MaximumRunCount <= 0 {
 		return Request{}, fmt.Errorf("--runs must be greater than 0")
 	}
@@ -65,14 +70,15 @@ func Parse(args []string) (Request, error) {
 	}
 	if len(positionals) == 1 {
 		request.Command = positionals[0]
+		request.CommandSet = true
 	}
 
 	activeModes := 0
-	if request.Command != "" {
+	if request.CommandSet {
 		request.Mode = ModeRun
 		activeModes++
 	}
-	if request.ClearCommand != "" {
+	if request.ClearCommandSet {
 		request.Mode = ModeClear
 		activeModes++
 	}

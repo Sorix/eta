@@ -58,6 +58,25 @@ func TestRunnerWritesThroughStandardWriterWithoutHandler(t *testing.T) {
 	}
 }
 
+func TestRunnerStoresLineRecordsInDrainOrder(t *testing.T) {
+	runner := Runner{Writer: Writer{}, ShellPath: "/bin/sh"}
+
+	output, err := runner.Run(context.Background(), "printf 'stdout first\\n'; sleep 0.05; printf 'stderr second\\n' >&2", func(Chunk) {})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+
+	if len(output.LineRecords) != 2 {
+		t.Fatalf("line records = %d, want 2", len(output.LineRecords))
+	}
+	if output.LineRecords[0].TextHash != hashline.Hash("stdout first") {
+		t.Fatalf("first line hash = %q, want stdout first", output.LineRecords[0].TextHash)
+	}
+	if output.LineRecords[1].TextHash != hashline.Hash("stderr second") {
+		t.Fatalf("second line hash = %q, want stderr second", output.LineRecords[1].TextHash)
+	}
+}
+
 func TestRunnerHandlesManyOutputLines(t *testing.T) {
 	const lineCount = 50_000
 	runner := Runner{Writer: Writer{}, ShellPath: "/bin/sh"}

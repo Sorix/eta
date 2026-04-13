@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"sync"
 	"time"
 
 	"github.com/Sorix/eta/internal/progress"
@@ -68,13 +69,14 @@ func (r Runner) Run(ctx context.Context, command string, handler Handler) (Outpu
 		return Output{}, fmt.Errorf("start command: %w", err)
 	}
 
+	var collector lineRecordCollector
 	stdoutCh := make(chan drainResult, 1)
 	stderrCh := make(chan drainResult, 1)
 	go func() {
-		stdoutCh <- r.drain(stdout, Stdout, start, handler)
+		stdoutCh <- r.drain(stdout, Stdout, start, handler, &collector)
 	}()
 	go func() {
-		stderrCh <- r.drain(stderr, Stderr, start, handler)
+		stderrCh <- r.drain(stderr, Stderr, start, handler, &collector)
 	}()
 
 	waitErr := cmd.Wait()
@@ -82,14 +84,11 @@ func (r Runner) Run(ctx context.Context, command string, handler Handler) (Outpu
 	stderrResult := <-stderrCh
 	totalDuration := time.Since(start).Seconds()
 
-	lineRecords := make([]progress.LineRecord, 0, len(stdoutResult.records)+len(stderrResult.records)+2)
-	lineRecords = append(lineRecords, stdoutResult.records...)
-	lineRecords = append(lineRecords, stderrResult.records...)
-	lineRecords = append(lineRecords, stdoutResult.buffer.flushFinalLine(totalDuration)...)
-	lineRecords = append(lineRecords, stderrResult.buffer.flushFinalLine(totalDuration)...)
+	collector.append(stdoutResult.buffer.flushFinalLine(totalDuration)...)
+	collector.append(stderrResult.buffer.flushFinalLine(totalDuration)...)
 
 	output := Output{
-		LineRecords:   lineRecords,
+		LineRecords:   collector.snapshot(),
 		TotalDuration: totalDuration,
 		ExitCode:      exitCode(waitErr),
 	}
@@ -109,12 +108,11 @@ func (r Runner) Run(ctx context.Context, command string, handler Handler) (Outpu
 }
 
 type drainResult struct {
-	buffer  outputLineBuffer
-	records []progress.LineRecord
-	err     error
+	buffer outputLineBuffer
+	err    error
 }
 
-func (r Runner) drain(reader io.Reader, stream Stream, start time.Time, handler Handler) drainResult {
+func (r Runner) drain(reader io.Reader, stream Stream, start time.Time, handler Handler, collector *lineRecordCollector) drainResult {
 	var result drainResult
 	buffer := make([]byte, readBufferSize)
 
@@ -124,7 +122,7 @@ func (r Runner) drain(reader io.Reader, stream Stream, start time.Time, handler 
 			raw := append([]byte(nil), buffer[:n]...)
 			offsetSeconds := time.Since(start).Seconds()
 			update := result.buffer.append(raw, offsetSeconds)
-			result.records = append(result.records, update.lineRecords...)
+			collector.append(update.lineRecords...)
 
 			if handler != nil {
 				handler(Chunk{
@@ -145,6 +143,28 @@ func (r Runner) drain(reader io.Reader, stream Stream, start time.Time, handler 
 			return result
 		}
 	}
+}
+
+type lineRecordCollector struct {
+	mu      sync.Mutex
+	records []progress.LineRecord
+}
+
+func (c *lineRecordCollector) append(records ...progress.LineRecord) {
+	if len(records) == 0 {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.records = append(c.records, records...)
+}
+
+func (c *lineRecordCollector) snapshot() []progress.LineRecord {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return append([]progress.LineRecord(nil), c.records...)
 }
 
 func defaultShellPath() string {

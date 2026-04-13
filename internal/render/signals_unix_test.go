@@ -52,7 +52,6 @@ func TestSignalTrapCancelIsIdempotentAndDoesNotCleanup(t *testing.T) {
 
 	trap.Cancel()
 	trap.Cancel()
-	waitDone(t, trap.Done())
 
 	want := []string{"stop", "reset:2,15"}
 	if got := recorder.snapshot(); strings.Join(got, ",") != strings.Join(want, ",") {

@@ -72,11 +72,6 @@ func TestRenderLoopCancelIsIdempotentAndStopsUpdates(t *testing.T) {
 
 	loop.Cancel()
 	loop.Cancel()
-	select {
-	case <-loop.Done():
-	case <-time.After(time.Second):
-		t.Fatal("loop did not stop")
-	}
 
 	ticks <- time.Now()
 	if got := renderer.updateCount(); got != 0 {

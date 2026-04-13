@@ -39,6 +39,9 @@ func TestParseRunModeDefaults(t *testing.T) {
 	if request.Command != "echo hi" {
 		t.Fatalf("Command = %q; want echo hi", request.Command)
 	}
+	if !request.CommandSet {
+		t.Fatal("CommandSet = false; want true")
+	}
 	if request.MaximumRunCount != defaultMaximumRunCount {
 		t.Fatalf("MaximumRunCount = %d; want %d", request.MaximumRunCount, defaultMaximumRunCount)
 	}
@@ -66,6 +69,9 @@ func TestParseRunModeOptions(t *testing.T) {
 	if request.Name != "build" {
 		t.Fatalf("Name = %q; want build", request.Name)
 	}
+	if !request.NameSet {
+		t.Fatal("NameSet = false; want true")
+	}
 	if !request.Quiet {
 		t.Fatal("Quiet = false; want true")
 	}
@@ -88,6 +94,9 @@ func TestParseClearModes(t *testing.T) {
 	if clearRequest.Mode != ModeClear || clearRequest.ClearCommand != "swift build" {
 		t.Fatalf("clear request = (%v, %q); want clear swift build", clearRequest.Mode, clearRequest.ClearCommand)
 	}
+	if !clearRequest.ClearCommandSet {
+		t.Fatal("ClearCommandSet = false; want true")
+	}
 
 	clearAllRequest, err := Parse([]string{"--clear-all"})
 	if err != nil {
@@ -95,5 +104,31 @@ func TestParseClearModes(t *testing.T) {
 	}
 	if clearAllRequest.Mode != ModeClearAll {
 		t.Fatalf("Mode = %v; want ModeClearAll", clearAllRequest.Mode)
+	}
+}
+
+func TestParseTreatsPresentEmptyStringsAsPresent(t *testing.T) {
+	emptyCommand, err := Parse([]string{""})
+	if err != nil {
+		t.Fatalf("Parse(empty command) error = %v", err)
+	}
+	if emptyCommand.Mode != ModeRun || !emptyCommand.CommandSet || emptyCommand.Command != "" {
+		t.Fatalf("empty command request = %+v; want run mode with empty command present", emptyCommand)
+	}
+
+	emptyClear, err := Parse([]string{"--clear", ""})
+	if err != nil {
+		t.Fatalf("Parse(empty clear) error = %v", err)
+	}
+	if emptyClear.Mode != ModeClear || !emptyClear.ClearCommandSet || emptyClear.ClearCommand != "" {
+		t.Fatalf("empty clear request = %+v; want clear mode with empty command present", emptyClear)
+	}
+
+	emptyName, err := Parse([]string{"--name", "", "echo hi"})
+	if err != nil {
+		t.Fatalf("Parse(empty name) error = %v", err)
+	}
+	if !emptyName.NameSet || emptyName.Name != "" {
+		t.Fatalf("empty name request = %+v; want empty name present", emptyName)
 	}
 }

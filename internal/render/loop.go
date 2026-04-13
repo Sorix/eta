@@ -54,6 +54,7 @@ func (l *RenderLoop) Cancel() {
 	l.cancelOnce.Do(func() {
 		close(l.cancel)
 	})
+	<-l.done
 }
 
 // Done is closed after the loop goroutine exits.
@@ -77,6 +78,11 @@ func (l *RenderLoop) run(renderer Updater, estimator estimateSource, startTime t
 		case _, ok := <-ticks:
 			if !ok {
 				return
+			}
+			select {
+			case <-l.cancel:
+				return
+			default:
 			}
 			if renderer == nil || estimator == nil {
 				continue

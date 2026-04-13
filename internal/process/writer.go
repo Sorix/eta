@@ -1,9 +1,11 @@
 package process
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
+	"syscall"
 )
 
 // Stream identifies the process output stream that produced bytes.
@@ -44,6 +46,9 @@ func (w Writer) Write(data []byte, stream Stream) error {
 
 	_, err := target.Write(data)
 	if err != nil {
+		if errors.Is(err, syscall.EPIPE) {
+			return nil
+		}
 		return fmt.Errorf("write command output: %w", err)
 	}
 	return nil

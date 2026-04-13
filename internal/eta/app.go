@@ -100,7 +100,7 @@ func (a App) Run(args []string) int {
 
 func (a App) runCommand(request cli.Request, store store, resolve func(string) string, stderr io.Writer) int {
 	commandKey := request.Name
-	if commandKey == "" {
+	if !request.NameSet {
 		commandKey = resolve(request.Command)
 	}
 
