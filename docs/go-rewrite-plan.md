@@ -2,6 +2,8 @@
 
 Rewrite `eta` in Go as a small, high-quality CLI utility. Preserve behavior and history compatibility first; improve implementation quality through Go idioms, clear package boundaries, and strong tests.
 
+Status: Go cutover is complete. The Swift implementation has been removed after approved cutover; Swift references below are historical compatibility context or fixture provenance.
+
 ## Goals
 
 - One static Go binary with fast startup.
@@ -266,13 +268,12 @@ Cutover requires all applicable gates:
 
 | Gate | Command |
 | --- | --- |
-| Format | `gofmt -l .` |
+| Format | `test -z "$(gofmt -l $(git ls-files '*.go'))"` |
 | Unit | `go test ./...` |
 | Race-sensitive | `go test -race ./internal/process ./internal/render ./internal/coordinator` |
 | Vet | `go vet ./...` |
 | Vulnerability scan | `govulncheck ./...` or `go tool govulncheck ./...` |
 | Dependency freshness | `go list -m -u -json all` |
-| Swift baseline while dual-running | `swift test --parallel` |
 | Simulate | `scripts/ci/test-simulate.sh <go eta binary>` |
 | Stdio cleanliness | `scripts/ci/test-stdio-clean.sh <go eta binary>` |
 | Large output | `scripts/ci/test-large-output.sh <go eta binary>` |

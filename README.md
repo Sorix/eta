@@ -84,15 +84,13 @@ make uninstall # to uninstall
 make build      # build .build/go/eta
 make go-test    # run Go unit tests
 
-# Swift remains as a temporary baseline until the cutover cleanup is complete.
-make swift-test
 ```
 
 ## Usage
 
 ```sh
 # Basic — wrap any command
-eta 'swift build 2>&1 | xcbeautify --is-ci'
+eta 'go test ./...'
 
 # Name a command for stable history across argument changes
 eta --name deploy './deploy.sh --env staging --region us-east-1'

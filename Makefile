@@ -23,12 +23,6 @@ go-build:
 go-test:
 	GOCACHE="$(GO_CACHE_DIR)" $(GO) test ./...
 
-swift-build:
-	swift build -c release
-
-swift-test:
-	swift test --parallel
-
 install: build
 	install -d "$(PREFIX)/bin"
 	install "$(GO_ETA)" "$(PREFIX)/bin/eta"
@@ -39,7 +33,4 @@ uninstall:
 clean:
 	rm -rf "$(GO_BUILD_DIR)"
 
-swift-clean:
-	swift package clean
-
-.PHONY: build go-build go-test swift-build swift-test install uninstall clean swift-clean
+.PHONY: build go-build go-test install uninstall clean

@@ -30,7 +30,6 @@ env GOCACHE=/tmp/eta-go-build go test -race ./internal/process ./internal/render
 scripts/ci/test-simulate.sh .build/go/eta
 scripts/ci/test-stdio-clean.sh .build/go/eta
 scripts/ci/test-large-output.sh .build/go/eta
-swift test --parallel
 ```
 
 ## Provenance And Signing

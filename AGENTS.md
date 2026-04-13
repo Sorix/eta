@@ -10,6 +10,7 @@ make go-test                         # Go unit tests
 env GOCACHE=/tmp/eta-go-build go test ./...
 env GOCACHE=/tmp/eta-go-build go test -race ./internal/process ./internal/render ./internal/coordinator ./internal/eta
 env GOCACHE=/tmp/eta-go-build go vet ./...
+test -z "$(gofmt -l $(git ls-files '*.go'))"
 scripts/ci/test-simulate.sh .build/go/eta      # real simulate.sh test
 scripts/ci/test-large-output.sh .build/go/eta  # large-output performance test
 scripts/ci/test-stdio-clean.sh .build/go/eta   # stdout/stderr cleanliness test
@@ -18,9 +19,7 @@ make install                         # install Go binary to conventional user pr
 sudo make install                    # system install when PREFIX requires privileges
 ```
 
-Swift remains in the repository only as a dual-run baseline until the approved removal step. When touching cutover-sensitive behavior, also run `swift test --parallel`. If manually building Swift, pipe `swift build` output through `xcbeautify` for readable logs.
-
-CI runs Go unit/format/vet/race/dependency/vulnerability checks, Go integration scripts, and the Swift baseline tests on Linux and macOS pull request jobs.
+CI runs Go unit/format/vet/race/dependency/vulnerability checks and Go integration scripts on Linux and macOS pull request jobs.
 
 ## Project Structure
 
@@ -29,7 +28,7 @@ cmd/eta/                     # Thin executable target; calls eta.Main(os.Args[1:
 internal/
 ├── eta/                     # production wiring and exit-code boundary
 ├── cli/                     # pflag parsing and validation
-├── commandkey/              # Swift-compatible command-key resolution
+├── commandkey/              # stable command-key resolution
 ├── coordinator/             # history/run/render workflow orchestration
 ├── hashline/                # line normalization and MD5/SHA-256 hashing
 ├── history/                 # JSON load/save, pruning, downsampling, clear
@@ -37,9 +36,8 @@ internal/
 ├── progress/                # matcher, reference timeline, ETA estimator
 ├── render/                  # /dev/tty, formatter, redraw locking, ticker loop, signals
 └── testutil/                # test support
-testdata/swift-compat/       # compatibility fixtures generated from Swift
+testdata/swift-compat/       # compatibility fixtures from the Swift implementation
 scripts/ci/                  # GitHub Actions real/e2e and performance test scripts
-Sources/, Tests/             # Swift baseline retained until approved removal
 ```
 
 ## CLI Flags
@@ -59,14 +57,12 @@ eta <command>              Run a command with progress tracking
 
 - macOS / Linux
 - Go 1.26+
-- Swift 6.0+ and [xcbeautify](https://github.com/cpisciotta/xcbeautify) only while the Swift baseline remains
 
 ## Dependencies
 
 - [github.com/spf13/pflag](https://github.com/spf13/pflag) for CLI parsing
 - [golang.org/x/term](https://pkg.go.dev/golang.org/x/term) for terminal detection and width
 - [github.com/google/renameio/v2](https://github.com/google/renameio) for atomic history replacement
-- Swift dependency retained during dual-running: [swift-argument-parser](https://github.com/apple/swift-argument-parser)
 
 ## Key Design Decisions
 
