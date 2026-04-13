@@ -37,6 +37,7 @@ type Handler func(Chunk)
 type Runner struct {
 	Writer    Writer
 	ShellPath string
+	Clock     func() time.Time
 }
 
 // NewRunner creates a runner that passes raw output through to stdout/stderr.
@@ -44,6 +45,7 @@ func NewRunner() Runner {
 	return Runner{
 		Writer:    StandardWriter(),
 		ShellPath: defaultShellPath(),
+		Clock:     time.Now,
 	}
 }
 
@@ -52,6 +54,10 @@ func (r Runner) Run(ctx context.Context, command string, handler Handler) (Outpu
 	shellPath := r.ShellPath
 	if shellPath == "" {
 		shellPath = defaultShellPath()
+	}
+	clock := r.Clock
+	if clock == nil {
+		clock = time.Now
 	}
 
 	cmd := exec.CommandContext(ctx, shellPath, "-c", command)
@@ -64,25 +70,46 @@ func (r Runner) Run(ctx context.Context, command string, handler Handler) (Outpu
 		return Output{}, fmt.Errorf("stderr pipe: %w", err)
 	}
 
-	start := time.Now()
+	start := clock()
 	if err := cmd.Start(); err != nil {
 		return Output{}, fmt.Errorf("start command: %w", err)
 	}
 
-	var collector lineRecordCollector
-	stdoutCh := make(chan drainResult, 1)
-	stderrCh := make(chan drainResult, 1)
+	events := make(chan Chunk, 32)
+	var drainWG sync.WaitGroup
+	drainWG.Add(2)
+
+	resultCh := make(chan drainResult, 2)
 	go func() {
-		stdoutCh <- r.drain(stdout, Stdout, start, handler, &collector)
+		defer drainWG.Done()
+		resultCh <- r.drain(stdout, Stdout, start, clock, events)
 	}()
 	go func() {
-		stderrCh <- r.drain(stderr, Stderr, start, handler, &collector)
+		defer drainWG.Done()
+		resultCh <- r.drain(stderr, Stderr, start, clock, events)
+	}()
+	go func() {
+		drainWG.Wait()
+		close(events)
 	}()
 
-	stdoutResult := <-stdoutCh
-	stderrResult := <-stderrCh
+	var collector lineRecordCollector
+	var handlerErr error
+	for chunk := range events {
+		collector.append(chunk.LineRecords...)
+		if handler != nil {
+			handler(chunk)
+			continue
+		}
+		if writeErr := r.Writer.Write(chunk.RawOutput, chunk.Stream); writeErr != nil {
+			handlerErr = errors.Join(handlerErr, writeErr)
+		}
+	}
+
+	stdoutResult := <-resultCh
+	stderrResult := <-resultCh
 	waitErr := cmd.Wait()
-	totalDuration := time.Since(start).Seconds()
+	totalDuration := clock().Sub(start).Seconds()
 
 	collector.append(stdoutResult.buffer.flushFinalLine(totalDuration)...)
 	collector.append(stderrResult.buffer.flushFinalLine(totalDuration)...)
@@ -93,7 +120,7 @@ func (r Runner) Run(ctx context.Context, command string, handler Handler) (Outpu
 		ExitCode:      exitCode(waitErr),
 	}
 
-	if err := errors.Join(stdoutResult.err, stderrResult.err); err != nil {
+	if err := errors.Join(stdoutResult.err, stderrResult.err, handlerErr); err != nil {
 		return output, err
 	}
 	if waitErr != nil {
@@ -112,8 +139,8 @@ type drainResult struct {
 	err    error
 }
 
-// drain copies one output stream, hashes complete lines, and forwards raw bytes as they arrive.
-func (r Runner) drain(reader io.Reader, stream Stream, start time.Time, handler Handler, collector *lineRecordCollector) drainResult {
+// drain copies one output stream, hashes completed lines, and emits serialized chunk events.
+func (r Runner) drain(reader io.Reader, stream Stream, start time.Time, clock func() time.Time, events chan<- Chunk) drainResult {
 	var result drainResult
 	buffer := make([]byte, readBufferSize)
 
@@ -121,19 +148,14 @@ func (r Runner) drain(reader io.Reader, stream Stream, start time.Time, handler 
 		n, err := reader.Read(buffer)
 		if n > 0 {
 			raw := append([]byte(nil), buffer[:n]...)
-			offsetSeconds := time.Since(start).Seconds()
-			update := result.buffer.append(raw, offsetSeconds)
-			collector.append(update.lineRecords...)
-
-			if handler != nil {
-				handler(Chunk{
-					RawOutput:           raw,
-					LineRecords:         update.lineRecords,
-					Stream:              stream,
-					ContainsPartialLine: update.containsPartialLine,
-				})
-			} else if writeErr := r.Writer.Write(raw, stream); writeErr != nil {
-				result.err = errors.Join(result.err, writeErr)
+			update := result.buffer.append(raw, func() float64 {
+				return clock().Sub(start).Seconds()
+			})
+			events <- Chunk{
+				RawOutput:           raw,
+				LineRecords:         update.lineRecords,
+				Stream:              stream,
+				ContainsPartialLine: update.containsPartialLine,
 			}
 		}
 		if errors.Is(err, io.EOF) {
@@ -154,7 +176,7 @@ type lineRecordCollector struct {
 	records []progress.LineRecord
 }
 
-// append records lines in drain completion order from both output streams.
+// append records lines in the serialized order observed by Run.
 func (c *lineRecordCollector) append(records ...progress.LineRecord) {
 	if len(records) == 0 {
 		return

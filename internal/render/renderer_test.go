@@ -63,6 +63,9 @@ func TestRendererUpdateThrottlesAndCleanupRestoresCursor(t *testing.T) {
 	if !strings.HasSuffix(terminal.String(), clearLineReturn+showCursor) {
 		t.Fatalf("cleanup suffix = %q", terminal.String())
 	}
+	if terminal.closeCount != 1 {
+		t.Fatalf("terminal close count = %d, want 1", terminal.closeCount)
+	}
 }
 
 func TestRendererWriteOutputAndRedrawTracksPartialLine(t *testing.T) {
@@ -125,6 +128,9 @@ func TestRendererFinishHandlesPartialLineAndCompletion(t *testing.T) {
 	if strings.Contains(got, showCursor) {
 		t.Fatalf("cursor was never hidden, so finish should not show it: %q", got)
 	}
+	if terminal.closeCount != 1 {
+		t.Fatalf("terminal close count = %d, want 1", terminal.closeCount)
+	}
 }
 
 func newTestRenderer(terminal *fakeTerminal) *Renderer {
@@ -132,8 +138,9 @@ func newTestRenderer(terminal *fakeTerminal) *Renderer {
 }
 
 type fakeTerminal struct {
-	width int
-	buf   bytes.Buffer
+	width      int
+	buf        bytes.Buffer
+	closeCount int
 }
 
 func (t *fakeTerminal) Width() int {
@@ -146,6 +153,11 @@ func (t *fakeTerminal) Width() int {
 func (t *fakeTerminal) Write(text string) error {
 	_, err := t.buf.WriteString(text)
 	return err
+}
+
+func (t *fakeTerminal) Close() error {
+	t.closeCount++
+	return nil
 }
 
 func (t *fakeTerminal) String() string {

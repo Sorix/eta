@@ -16,6 +16,8 @@ func TestParseRejectsInvalidModesAndRunCounts(t *testing.T) {
 		{name: "too many command arguments", args: []string{"echo", "hi"}},
 		{name: "invalid color", args: []string{"--color", "orange", "echo hi"}},
 		{name: "uppercase color", args: []string{"--color", "Cyan", "echo hi"}},
+		{name: "empty explicit name", args: []string{"--name", "", "echo hi"}},
+		{name: "whitespace explicit name", args: []string{"--name", " \t ", "echo hi"}},
 	}
 
 	for _, tt := range tests {
@@ -124,11 +126,4 @@ func TestParseTreatsPresentEmptyStringsAsPresent(t *testing.T) {
 		t.Fatalf("empty clear request = %+v; want clear mode with empty command present", emptyClear)
 	}
 
-	emptyName, err := Parse([]string{"--name", "", "echo hi"})
-	if err != nil {
-		t.Fatalf("Parse(empty name) error = %v", err)
-	}
-	if !emptyName.NameSet || emptyName.Name != "" {
-		t.Fatalf("empty name request = %+v; want empty name present", emptyName)
-	}
 }

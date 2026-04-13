@@ -36,6 +36,14 @@ check:
 	$(MAKE) go-race
 	$(MAKE) go-build
 
+ci: check
+	go list -m -u -json all
+	$(GO_LOCAL) run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+	./scripts/ci/test-simulate.sh "$(GO_ETA)"
+	./scripts/ci/test-command-key-resolution.sh "$(GO_ETA)"
+	./scripts/ci/test-stdio-clean.sh "$(GO_ETA)"
+	./scripts/ci/test-large-output.sh "$(GO_ETA)"
+
 install: build
 	install -d "$(PREFIX)/bin"
 	install "$(GO_ETA)" "$(PREFIX)/bin/eta"
@@ -46,4 +54,4 @@ uninstall:
 clean:
 	rm -rf "$(GO_BUILD_DIR)"
 
-.PHONY: build go-build go-test go-vet go-race check install uninstall clean
+.PHONY: build go-build go-test go-vet go-race check ci install uninstall clean

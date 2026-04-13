@@ -62,6 +62,7 @@ Software is in alpha-test, releases will be published later. Installing from sou
 
 - Go 1.26+
 - macOS or Linux
+- Python 3 for integration/performance test scripts
 
 ### Installation
 
@@ -77,6 +78,7 @@ make uninstall  # to uninstall
 make build      # build .build/go/eta
 make go-test    # run Go unit tests
 make check      # format, test, vet, race, build
+make ci         # local equivalent of the CI pipeline
 scripts/go-local.sh test ./...
 ```
 

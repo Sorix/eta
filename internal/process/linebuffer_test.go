@@ -9,7 +9,7 @@ import (
 func TestOutputLineBufferBuffersSplitChunksAndFlushesFinalLine(t *testing.T) {
 	var buffer outputLineBuffer
 
-	first := buffer.append([]byte("hel"), 0.1)
+	first := buffer.append([]byte("hel"), func() float64 { return 0.1 })
 	if len(first.lineRecords) != 0 {
 		t.Fatalf("first records = %d, want 0", len(first.lineRecords))
 	}
@@ -17,7 +17,7 @@ func TestOutputLineBufferBuffersSplitChunksAndFlushesFinalLine(t *testing.T) {
 		t.Fatal("first containsPartialLine = false, want true")
 	}
 
-	second := buffer.append([]byte("lo\nwor"), 0.2)
+	second := buffer.append([]byte("lo\nwor"), func() float64 { return 0.2 })
 	if len(second.lineRecords) != 1 || second.lineRecords[0].TextHash != hashline.Hash("hello") {
 		t.Fatalf("second records = %#v, want hash for hello", second.lineRecords)
 	}
@@ -34,7 +34,7 @@ func TestOutputLineBufferBuffersSplitChunksAndFlushesFinalLine(t *testing.T) {
 func TestOutputLineBufferIgnoresBlankLinesAndStripsCRLF(t *testing.T) {
 	var buffer outputLineBuffer
 
-	update := buffer.append([]byte("\n\r\nvalue\r\n"), 1)
+	update := buffer.append([]byte("\n\r\nvalue\r\n"), func() float64 { return 1 })
 	if len(update.lineRecords) != 1 {
 		t.Fatalf("records = %d, want 1", len(update.lineRecords))
 	}
@@ -49,9 +49,33 @@ func TestOutputLineBufferIgnoresBlankLinesAndStripsCRLF(t *testing.T) {
 func TestOutputLineBufferIgnoresInvalidUTF8Lines(t *testing.T) {
 	var buffer outputLineBuffer
 
-	update := buffer.append([]byte{0xff, '\n'}, 1)
+	update := buffer.append([]byte{0xff, '\n'}, func() float64 { return 1 })
 	if len(update.lineRecords) != 0 {
 		t.Fatalf("records = %d, want 0", len(update.lineRecords))
+	}
+	if update.containsPartialLine {
+		t.Fatal("containsPartialLine = true, want false")
+	}
+}
+
+func TestOutputLineBufferCapturesOffsetsPerCompletedLine(t *testing.T) {
+	var buffer outputLineBuffer
+	offsets := []float64{0.1, 0.2, 0.3}
+	index := 0
+
+	update := buffer.append([]byte("one\ntwo\nthree\n"), func() float64 {
+		offset := offsets[index]
+		index++
+		return offset
+	})
+
+	if len(update.lineRecords) != 3 {
+		t.Fatalf("records = %d, want 3", len(update.lineRecords))
+	}
+	for recordIndex, want := range offsets {
+		if got := update.lineRecords[recordIndex].OffsetSeconds; got != want {
+			t.Fatalf("record %d offset = %v, want %v", recordIndex, got, want)
+		}
 	}
 	if update.containsPartialLine {
 		t.Fatal("containsPartialLine = true, want false")

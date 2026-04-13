@@ -38,7 +38,7 @@ func TestResolveBareExecutableUsesCwdAndWhichPath(t *testing.T) {
 func TestResolveMissingExecutableUsesCwdAndOriginalCommand(t *testing.T) {
 	r := testResolver("/workspace/project", nil, nil)
 
-	got := r.resolve("no_such_command_xyz --flag")
+	got := r.resolve("  no_such_command_xyz --flag  ")
 	want := "/workspace/project\nno_such_command_xyz --flag"
 	if got != want {
 		t.Fatalf("resolve missing executable = %q, want %q", got, want)
@@ -103,8 +103,8 @@ func TestResolveSplitsAtFirstLiteralSpaceOnly(t *testing.T) {
 		"/workspace/project",
 		nil,
 		map[string]string{
-			"go":        "/usr/local/bin/go",
-			"tool\targ": "/bin/tool-tab",
+			"go":   "/usr/local/bin/go",
+			"tool": "/bin/tool-tab",
 		},
 	)
 
@@ -114,14 +114,14 @@ func TestResolveSplitsAtFirstLiteralSpaceOnly(t *testing.T) {
 		want    string
 	}{
 		{
-			name:    "preserves repeated spaces after executable",
+			name:    "normalizes repeated spaces after executable",
 			command: "go  build",
-			want:    "/workspace/project\n/usr/local/bin/go  build",
+			want:    "/workspace/project\n/usr/local/bin/go build",
 		},
 		{
-			name:    "does not split on tab",
+			name:    "treats tabs like spaces after executable",
 			command: "tool\targ next",
-			want:    "/workspace/project\n/bin/tool-tab next",
+			want:    "/workspace/project\n/bin/tool-tab arg next",
 		},
 		{
 			name:    "trims outer whitespace before resolving executable",
@@ -198,8 +198,8 @@ func portableCommandKey(t *testing.T, command, template string) string {
 		return resolved + " FOO=1"
 	case "{cwd}\\nno_such_command_xyz --flag":
 		return cwd + "\n" + command
-	case "{cwd}\\n{which:go}  build":
-		return cwd + "\n" + mustWhich(t, "go") + "  build"
+	case "{cwd}\\n{which:go} build":
+		return cwd + "\n" + mustWhich(t, "go") + " build"
 	default:
 		t.Fatalf("unsupported fixture template %q", template)
 		return ""

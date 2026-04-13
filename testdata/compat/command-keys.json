@@ -24,10 +24,10 @@
       "portableTemplate": "{cwd}\\nno_such_command_xyz --flag"
     },
     {
-      "name": "multiple spaces preserve rest after first literal space",
+      "name": "multiple spaces normalize to one separator after executable",
       "command": "go  build",
-      "expected": "/Users/vasily/Git/eta\n/opt/homebrew/bin/go  build",
-      "portableTemplate": "{cwd}\\n{which:go}  build"
+      "expected": "/Users/vasily/Git/eta\n/opt/homebrew/bin/go build",
+      "portableTemplate": "{cwd}\\n{which:go} build"
     }
   ]
 }

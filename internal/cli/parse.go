@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/spf13/pflag"
 )
@@ -60,6 +61,9 @@ func Parse(args []string) (Request, error) {
 	}
 	request.NameSet = flags.Changed("name")
 	request.ClearCommandSet = flags.Changed("clear")
+	if request.NameSet && strings.TrimSpace(request.Name) == "" {
+		return Request{}, fmt.Errorf("--name must not be empty")
+	}
 	if request.MaximumRunCount <= 0 {
 		return Request{}, fmt.Errorf("--runs must be greater than 0")
 	}

@@ -17,11 +17,11 @@ type outputLineBuffer struct {
 	pending []byte
 }
 
-func (b *outputLineBuffer) append(data []byte, offsetSeconds float64) lineBufferUpdate {
+func (b *outputLineBuffer) append(data []byte, nextOffsetSeconds func() float64) lineBufferUpdate {
 	var records []progress.LineRecord
 	for _, value := range data {
 		if value == '\n' {
-			if record, ok := makeRecord(b.pending, offsetSeconds); ok {
+			if record, ok := makeRecord(b.pending, nextOffsetSeconds()); ok {
 				records = append(records, record)
 			}
 			b.pending = b.pending[:0]

@@ -144,8 +144,8 @@ func TestRunnerDrainIgnoresClosedReader(t *testing.T) {
 		},
 		Stdout,
 		time.Now(),
-		nil,
-		&lineRecordCollector{},
+		time.Now,
+		make(chan Chunk, 1),
 	)
 
 	if result.err != nil {

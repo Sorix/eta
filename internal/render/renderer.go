@@ -20,6 +20,7 @@ const (
 type terminalHandle interface {
 	Width() int
 	Write(string) error
+	Close() error
 }
 
 // Renderer serializes progress redraws with wrapped command output.
@@ -160,6 +161,7 @@ func (r *Renderer) Cleanup() error {
 		r.barVisible = false
 	}
 	err = errors.Join(err, r.showCursorLocked())
+	err = errors.Join(err, r.closeTerminalLocked())
 	return err
 }
 
@@ -186,6 +188,7 @@ func (r *Renderer) Finish(elapsed, expectedDuration float64) error {
 		r.outputContainsPartialLine = false
 	}
 	err = errors.Join(err, r.writeTerminalLocked(CompletionLine(elapsed, expectedDuration)))
+	err = errors.Join(err, r.closeTerminalLocked())
 	return err
 }
 
@@ -225,4 +228,13 @@ func (r *Renderer) writeTerminalLocked(text string) error {
 		return nil
 	}
 	return r.terminal.Write(text)
+}
+
+func (r *Renderer) closeTerminalLocked() error {
+	if r.terminal == nil {
+		return nil
+	}
+	err := r.terminal.Close()
+	r.terminal = nil
+	return err
 }

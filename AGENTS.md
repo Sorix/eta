@@ -10,6 +10,7 @@ make go-test                         # Go unit tests
 make go-vet                          # Go vet with repo-local cache/tmp dirs
 make go-race                         # Go race-sensitive suites
 make check                           # format/test/vet/race/build
+make ci                              # local equivalent of the CI pipeline
 scripts/go-local.sh test ./...       # direct Go command with repo-local build/module/tmp dirs
 scripts/go-local.sh test -race ./internal/process ./internal/render ./internal/coordinator ./internal/eta
 scripts/go-local.sh vet ./...
@@ -59,6 +60,7 @@ eta <command>              Run a command with progress tracking
 
 - macOS / Linux
 - Go 1.26+
+- Python 3 for the integration/performance shell scripts under `scripts/ci/`
 
 ## Dependencies
 
@@ -77,7 +79,8 @@ Repo entrypoints use `scripts/go-local.sh`, which sets repo-local `GOCACHE`, `GO
 - Progress bar: `TimelineProgressEstimator` returns confirmed progress from matched historical lines plus predicted progress from timer projection; renderer draws confirmed as solid fill, predicted-only as shaded fill, and empty progress as spaces; `--solid` draws predicted progress as one solid fill; ETA is based on predicted progress
 - First run: before a command has usable history, a one-shot yellow header is printed to `/dev/tty` at the top, then command output flows normally without a progress bar; this header intentionally ignores `--color`
 - Atomic clear→write→redraw under lock prevents timer/output races
-- Command key resolution: when no `--name` is given, the first token is resolved to build a stable key. Path-based invocations (`./test.sh`, `../build.sh`) are canonicalized via `filepath.EvalSymlinks`/absolute path resolution. Bare-name invocations (`make`, `go build`) are resolved via `/usr/bin/which` and prefixed with the working directory, since the same executable in different projects does different work. Shell aliases, functions, and builtins can't be resolved, so they are treated like bare names (cwd-prefixed).
+- Command key resolution: when no `--name` is given, the first shell token is resolved to build a stable key after trimming surrounding whitespace and normalizing the separator between the executable and the remaining arguments to a single space. Path-based invocations (`./test.sh`, `../build.sh`) are canonicalized via `filepath.EvalSymlinks`/absolute path resolution. Bare-name invocations (`make`, `go build`) are resolved via `/usr/bin/which` and prefixed with the working directory, since the same executable in different projects does different work. Shell aliases, functions, and builtins can't be resolved, so they are treated like bare names (cwd-prefixed).
+- Explicit `--name` aliases are authoritative and must be non-empty after trimming whitespace.
 - History: JSON files keyed by SHA256 of the command key (`--name` or resolved command string) and storing only that hash
   - macOS: `~/Library/Caches/eta/`
   - Linux: `$XDG_CACHE_HOME/eta/` or `~/.cache/eta/`
