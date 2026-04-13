@@ -97,6 +97,21 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      - name: Run command-key resolution test
+        id: command-key
+        continue-on-error: true
+        run: |
+          scripts/ci/test-command-key-resolution.sh .build/release/eta
+
+      - name: Upload command-key diagnostics
+        if: ${{ steps.command-key.outcome == 'failure' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: command-key-diagnostics-${{ matrix.os }}
+          path: ${{ runner.temp }}/eta-ci/command-key.*
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Run stdout/stderr cleanliness test
         id: stdio
         continue-on-error: true
@@ -128,5 +143,5 @@ jobs:
           retention-days: 7
 
       - name: Fail if release checks failed
-        if: ${{ always() && (steps.simulate.outcome == 'failure' || steps.stdio.outcome == 'failure' || steps.performance.outcome == 'failure') }}
+        if: ${{ always() && (steps.simulate.outcome == 'failure' || steps.command-key.outcome == 'failure' || steps.stdio.outcome == 'failure' || steps.performance.outcome == 'failure') }}
         run: exit 1
