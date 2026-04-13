@@ -1,0 +1,28 @@
+{
+  "notes": [
+    "Generated from Swift ProgressBarFormatter and ProgressTimeFormatter.",
+    "Raw values include ANSI escape sequences and Unicode bar glyphs."
+  ],
+  "cases": [
+    {
+      "name": "green layered half progress width 40",
+      "raw": "\u001b[32m[█████▒▒▒▒▒▒            ]   50%  ETA 5s\u001b[0m",
+      "stripped": "[█████▒▒▒▒▒▒            ]   50%  ETA 5s"
+    },
+    {
+      "name": "magenta solid full progress narrow width",
+      "raw": "\u001b[35m[██████████]  100%  ETA 0s\u001b[0m",
+      "stripped": "[██████████]  100%  ETA 0s"
+    },
+    {
+      "name": "completion with expected delta",
+      "raw": "\u001b[32mDone in 12s  (expected 10s, delta +2s)\u001b[0m\n",
+      "stripped": "Done in 12s  (expected 10s, delta +2s)\n"
+    },
+    {
+      "name": "completion without history",
+      "raw": "\u001b[32mDone in 1m00s\u001b[0m\n",
+      "stripped": "Done in 1m00s\n"
+    }
+  ]
+}
