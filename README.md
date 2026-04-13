@@ -85,6 +85,9 @@ scripts/go-local.sh test ./...
 ## Usage
 
 ```sh
+# Show usage
+eta --help
+
 # Basic — wrap any command
 eta 'go test ./...'
 

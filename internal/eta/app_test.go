@@ -16,16 +16,57 @@ import (
 	"github.com/Sorix/eta/internal/render"
 )
 
-func TestAppParseErrorReturnsUsageExitCode(t *testing.T) {
+func TestAppNoArgsWritesUsageAndReturnsSuccess(t *testing.T) {
 	app := testApp()
 
 	code := app.Run(nil)
+
+	if code != 0 {
+		t.Fatalf("exit code = %d; want 0", code)
+	}
+	if !strings.Contains(app.Stdout.(*bytes.Buffer).String(), "Usage:\n  eta [flags] '<command>'") {
+		t.Fatalf("stdout = %q; want usage", app.Stdout.(*bytes.Buffer).String())
+	}
+	if got := app.Stderr.(*bytes.Buffer).String(); got != "" {
+		t.Fatalf("stderr = %q; want empty", got)
+	}
+}
+
+func TestAppParseErrorReturnsUsageExitCode(t *testing.T) {
+	app := testApp()
+
+	code := app.Run([]string{"--quiet"})
 
 	if code != 2 {
 		t.Fatalf("exit code = %d; want 2", code)
 	}
 	if !strings.Contains(app.Stderr.(*bytes.Buffer).String(), "eta: error:") {
 		t.Fatalf("stderr = %q; want parse error", app.Stderr.(*bytes.Buffer).String())
+	}
+}
+
+func TestAppHelpWritesUsageAndSkipsStore(t *testing.T) {
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	app := App{
+		Stdout: stdout,
+		Stderr: stderr,
+		NewStore: func() (store, error) {
+			t.Fatal("history store should not be initialized for help")
+			return nil, nil
+		},
+	}
+
+	code := app.Run([]string{"--help"})
+
+	if code != 0 {
+		t.Fatalf("exit code = %d; want 0", code)
+	}
+	if !strings.Contains(stdout.String(), "Usage:\n  eta [flags] '<command>'") {
+		t.Fatalf("stdout = %q; want usage text", stdout.String())
+	}
+	if got := stderr.String(); got != "" {
+		t.Fatalf("stderr = %q; want empty", got)
 	}
 }
 

@@ -64,6 +64,11 @@ func (a App) Run(args []string) int {
 		return 2
 	}
 
+	if request.Mode == cli.ModeHelp {
+		fmt.Fprint(stdout, cli.Usage())
+		return 0
+	}
+
 	store, err := a.historyStore()
 	if err != nil {
 		fmt.Fprintf(stderr, "eta: error: %v\n", err)

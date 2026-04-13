@@ -9,6 +9,7 @@ import (
 )
 
 const defaultMaximumRunCount = 10
+const defaultColor = "green"
 
 // Mode identifies the selected CLI action.
 type Mode int
@@ -17,6 +18,7 @@ const (
 	ModeRun Mode = iota + 1
 	ModeClear
 	ModeClearAll
+	ModeHelp
 )
 
 // Request is the validated CLI request.
@@ -36,24 +38,24 @@ type Request struct {
 
 // Parse parses and validates eta command-line arguments.
 func Parse(args []string) (Request, error) {
+	if len(args) == 0 {
+		return Request{Mode: ModeHelp}, nil
+	}
+
 	var request Request
 	request.MaximumRunCount = defaultMaximumRunCount
-	request.Color = "green"
-
-	flags := pflag.NewFlagSet("eta", pflag.ContinueOnError)
-	flags.SetOutput(io.Discard)
-	flags.StringVar(&request.Name, "name", "", "custom command name")
-	flags.StringVar(&request.ClearCommand, "clear", "", "clear command history")
-	flags.BoolVar(&request.Quiet, "quiet", false, "learn without rendering")
-	flags.BoolVar(&request.Solid, "solid", false, "draw solid progress")
-	flags.IntVar(&request.MaximumRunCount, "runs", defaultMaximumRunCount, "history depth")
-	flags.StringVar(&request.Color, "color", "green", "progress bar color")
+	request.Color = defaultColor
 
 	var clearAll bool
-	flags.BoolVar(&clearAll, "clear-all", false, "clear all history")
+	var help bool
+	flags := newFlagSet(&request, &clearAll, &help)
+	flags.SetOutput(io.Discard)
 
 	if err := flags.Parse(args); err != nil {
 		return Request{}, err
+	}
+	if help {
+		return Request{Mode: ModeHelp}, nil
 	}
 
 	if err := validateColor(request.Color); err != nil {
@@ -122,6 +124,45 @@ func Parse(args []string) (Request, error) {
 	}
 
 	return request, nil
+}
+
+// Usage returns the eta CLI help text.
+func Usage() string {
+	var request Request
+	request.MaximumRunCount = defaultMaximumRunCount
+	request.Color = defaultColor
+
+	var clearAll bool
+	var help bool
+	flags := newFlagSet(&request, &clearAll, &help)
+
+	var builder strings.Builder
+	builder.WriteString("eta tracks progress for repeating commands.\n\n")
+	builder.WriteString("Usage:\n")
+	builder.WriteString("  eta [flags] '<command>'\n")
+	builder.WriteString("  eta --clear '<command>'\n")
+	builder.WriteString("  eta --clear-all\n\n")
+	builder.WriteString("Examples:\n")
+	builder.WriteString("  eta 'go test ./...'\n")
+	builder.WriteString("  eta --name build 'go build ./...'\n")
+	builder.WriteString("  eta --clear 'make build'\n\n")
+	builder.WriteString("Flags:\n")
+	builder.WriteString(flags.FlagUsagesWrapped(80))
+	return builder.String()
+}
+
+func newFlagSet(request *Request, clearAll, help *bool) *pflag.FlagSet {
+	flags := pflag.NewFlagSet("eta", pflag.ContinueOnError)
+	flags.SortFlags = false
+	flags.BoolVarP(help, "help", "h", false, "show help")
+	flags.StringVar(&request.Name, "name", "", "custom alias for the command fingerprint")
+	flags.StringVar(&request.ClearCommand, "clear", "", "clear history for a command")
+	flags.BoolVar(clearAll, "clear-all", false, "clear all history")
+	flags.StringVar(&request.Color, "color", defaultColor, "progress bar color: green, yellow, red, blue, magenta, cyan, white")
+	flags.BoolVar(&request.Quiet, "quiet", false, "learn execution time without rendering a progress bar")
+	flags.BoolVar(&request.Solid, "solid", false, "draw predicted progress as solid fill")
+	flags.IntVar(&request.MaximumRunCount, "runs", defaultMaximumRunCount, "history depth")
+	return flags
 }
 
 func validateColor(color string) error {

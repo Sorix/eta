@@ -47,6 +47,7 @@ scripts/ci/                  # GitHub Actions real/e2e and performance test scri
 
 ```
 eta <command>              Run a command with progress tracking
+  --help                   Show usage
   --name <name>            Custom alias for the command fingerprint
   --color <color>          Bar color: green, yellow, red, blue, magenta, cyan, white
   --quiet                  Learn execution time without showing a progress bar

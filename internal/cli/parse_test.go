@@ -1,13 +1,16 @@
 package cli
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestParseRejectsInvalidModesAndRunCounts(t *testing.T) {
 	tests := []struct {
 		name string
 		args []string
 	}{
-		{name: "no mode", args: []string{}},
+		{name: "quiet without mode", args: []string{"--quiet"}},
 		{name: "clear plus command", args: []string{"--clear", "echo hi", "echo hi"}},
 		{name: "clear all plus command", args: []string{"--clear-all", "echo hi"}},
 		{name: "clear plus clear all", args: []string{"--clear", "one", "--clear-all"}},
@@ -116,5 +119,39 @@ func TestParseClearModes(t *testing.T) {
 	}
 	if clearAllRequest.Mode != ModeClearAll {
 		t.Fatalf("Mode = %v; want ModeClearAll", clearAllRequest.Mode)
+	}
+}
+
+func TestParseHelpMode(t *testing.T) {
+	tests := [][]string{
+		{},
+		{"--help"},
+		{"-h"},
+	}
+
+	for _, args := range tests {
+		request, err := Parse(args)
+		if err != nil {
+			t.Fatalf("Parse(%q) error = %v", args, err)
+		}
+		if request.Mode != ModeHelp {
+			t.Fatalf("Parse(%q) mode = %v; want ModeHelp", args, request.Mode)
+		}
+	}
+}
+
+func TestUsageIncludesCoreSections(t *testing.T) {
+	usage := Usage()
+
+	for _, fragment := range []string{
+		"Usage:\n  eta [flags] '<command>'",
+		"eta --clear '<command>'",
+		"Examples:\n  eta 'go test ./...'",
+		"--help",
+		"--clear-all",
+	} {
+		if !strings.Contains(usage, fragment) {
+			t.Fatalf("Usage() missing %q in:\n%s", fragment, usage)
+		}
 	}
 }
