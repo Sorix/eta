@@ -30,7 +30,7 @@ go-race:
 	$(GO_LOCAL) test -race ./internal/process ./internal/render ./internal/coordinator ./internal/eta
 
 check:
-	test -z "$(gofmt -l $(git ls-files '*.go'))"
+	test -z "$$(gofmt -l $$(git ls-files '*.go'))"
 	$(MAKE) go-test
 	$(MAKE) go-vet
 	$(MAKE) go-race

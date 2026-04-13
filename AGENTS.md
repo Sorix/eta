@@ -37,8 +37,7 @@ internal/
 ├── history/                 # JSON load/save, pruning, downsampling, clear
 ├── process/                 # shell runner, stream draining, line buffering, raw pass-through
 ├── progress/                # matcher, reference timeline, ETA estimator
-├── render/                  # /dev/tty, formatter, redraw locking, ticker loop, signals
-└── testutil/                # test support
+└── render/                  # /dev/tty, formatter, redraw locking, ticker loop, signals
 testdata/compat/             # compatibility fixtures for cross-implementation behavior
 scripts/ci/                  # GitHub Actions real/e2e and performance test scripts
 ```
