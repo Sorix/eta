@@ -52,6 +52,7 @@ func (m LineMatcher) MatchLine(line LineRecord, previousIndex int) (int, bool) {
 	return firstCandidateAfter(m.normalizedIndices[line.NormalizedHash], previousIndex)
 }
 
+// firstCandidateAfter preserves ordering by picking the first reference index strictly after previousIndex.
 func firstCandidateAfter(indices []int, previousIndex int) (int, bool) {
 	for _, index := range indices {
 		if index > previousIndex {

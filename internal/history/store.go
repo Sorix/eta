@@ -38,6 +38,7 @@ func NewStore(directory string) Store {
 	}
 }
 
+// newStoreWithClock injects a clock for tests that exercise stale-history pruning.
 func newStoreWithClock(directory string, now func() time.Time) Store {
 	store := NewStore(directory)
 	store.now = now
@@ -119,10 +120,12 @@ func (s Store) ClearAll() error {
 	return nil
 }
 
+// filePath hashes commandKey so history filenames never expose the original command text.
 func (s Store) filePath(commandKey string) string {
 	return filepath.Join(s.directory, hashline.CommandFingerprint(commandKey)+".json")
 }
 
+// pruneRuns keeps only the newest maximumRunCount runs while preserving chronological order.
 func pruneRuns(history progress.CommandHistory, maximumRunCount int) progress.CommandHistory {
 	start := 0
 	if len(history.Runs) > maximumRunCount {
@@ -132,6 +135,7 @@ func pruneRuns(history progress.CommandHistory, maximumRunCount int) progress.Co
 	return history
 }
 
+// downsample keeps the first and last line and spreads the remaining samples evenly in between.
 func downsample(lines []progress.LineRecord, maximumCount int) []progress.LineRecord {
 	if len(lines) <= maximumCount || maximumCount < 2 {
 		return lines
@@ -147,6 +151,7 @@ func downsample(lines []progress.LineRecord, maximumCount int) []progress.LineRe
 	return result
 }
 
+// round implements symmetric half-away-from-zero rounding for downsampling indices.
 func round(value float64) float64 {
 	if value < 0 {
 		return float64(int(value - 0.5))
@@ -154,6 +159,7 @@ func round(value float64) float64 {
 	return float64(int(value + 0.5))
 }
 
+// pruneStale best-effort removes old JSON history files and ignores cleanup failures.
 func (s Store) pruneStale(staleAfterDays int) {
 	entries, err := os.ReadDir(s.directory)
 	if err != nil {

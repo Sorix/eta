@@ -23,6 +23,7 @@ func OpenTerminal() *Terminal {
 	return openTerminal("/dev/tty")
 }
 
+// openTerminal returns nil when path cannot be opened as an interactive terminal.
 func openTerminal(path string) *Terminal {
 	file, err := os.OpenFile(path, os.O_RDWR, 0)
 	if err != nil {
@@ -50,6 +51,7 @@ func (t *Terminal) Width() int {
 	return terminalWidth(t.fd, t.getSize)
 }
 
+// terminalWidth falls back to a conventional width when the terminal size is unavailable.
 func terminalWidth(fd int, getSize func(int) (int, int, error)) int {
 	width, _, err := getSize(fd)
 	if err != nil || width <= 0 {

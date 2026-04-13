@@ -112,6 +112,7 @@ type drainResult struct {
 	err    error
 }
 
+// drain copies one output stream, hashes complete lines, and forwards raw bytes as they arrive.
 func (r Runner) drain(reader io.Reader, stream Stream, start time.Time, handler Handler, collector *lineRecordCollector) drainResult {
 	var result drainResult
 	buffer := make([]byte, readBufferSize)
@@ -150,6 +151,7 @@ type lineRecordCollector struct {
 	records []progress.LineRecord
 }
 
+// append records lines in drain completion order from both output streams.
 func (c *lineRecordCollector) append(records ...progress.LineRecord) {
 	if len(records) == 0 {
 		return
@@ -160,6 +162,7 @@ func (c *lineRecordCollector) append(records ...progress.LineRecord) {
 	c.records = append(c.records, records...)
 }
 
+// snapshot returns a copy so callers can store records without mutating shared state.
 func (c *lineRecordCollector) snapshot() []progress.LineRecord {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -174,6 +177,7 @@ func defaultShellPath() string {
 	return "/bin/sh"
 }
 
+// exitCode extracts the process exit code, returning -1 when the command failed before one existed.
 func exitCode(err error) int {
 	if err == nil {
 		return 0

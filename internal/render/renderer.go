@@ -116,7 +116,7 @@ func (r *Renderer) ForceUpdate(fill progress.ProgressFill, remainingTime, elapse
 	return r.drawLocked(fill, remainingTime, elapsedTime)
 }
 
-// WriteOutputAndRedraw writes wrapped command bytes, then redraws progress at line boundaries.
+// WriteOutputAndRedraw clears the bar, forwards command output, and redraws only after full lines.
 func (r *Renderer) WriteOutputAndRedraw(rawOutput []byte, stream process.Stream, fill progress.ProgressFill, remainingTime, elapsedTime float64, containsPartialLine bool) error {
 	if r == nil {
 		return process.StandardWriter().Write(rawOutput, stream)
@@ -189,6 +189,7 @@ func (r *Renderer) Finish(elapsed, expectedDuration float64) error {
 	return err
 }
 
+// drawLocked writes one full progress line while holding r.mu.
 func (r *Renderer) drawLocked(fill progress.ProgressFill, remainingTime, elapsedTime float64) error {
 	if r.terminal == nil {
 		return nil
@@ -200,6 +201,7 @@ func (r *Renderer) drawLocked(fill progress.ProgressFill, remainingTime, elapsed
 	return err
 }
 
+// hideCursorLocked hides the terminal cursor once and remembers that state locally.
 func (r *Renderer) hideCursorLocked() error {
 	if r.cursorHidden {
 		return nil
@@ -208,6 +210,7 @@ func (r *Renderer) hideCursorLocked() error {
 	return r.writeTerminalLocked(hideCursor)
 }
 
+// showCursorLocked restores the cursor only if this renderer previously hid it.
 func (r *Renderer) showCursorLocked() error {
 	if !r.cursorHidden {
 		return nil
@@ -216,6 +219,7 @@ func (r *Renderer) showCursorLocked() error {
 	return r.writeTerminalLocked(showCursor)
 }
 
+// writeTerminalLocked writes directly to /dev/tty and treats a missing terminal as a no-op.
 func (r *Renderer) writeTerminalLocked(text string) error {
 	if r.terminal == nil {
 		return nil

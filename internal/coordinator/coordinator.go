@@ -29,6 +29,7 @@ type ExitCodeError struct {
 	Code int
 }
 
+// Error formats the wrapped command's exit code for callers that surface it directly.
 func (e ExitCodeError) Error() string {
 	return fmt.Sprintf("command exited with code %d", e.Code)
 }
@@ -65,10 +66,19 @@ type SignalTrap interface {
 	Cancel()
 }
 
+// RendererFactory builds a renderer for one coordinator run.
 type RendererFactory func(color render.Color, style render.BarStyle) Renderer
+
+// RenderLoopFactory starts the periodic redraw loop for one coordinator run.
 type RenderLoopFactory func(config RenderLoopConfig) RenderLoop
+
+// SignalTrapFactory installs cleanup logic for interrupt and termination signals.
 type SignalTrapFactory func(cleanup func()) SignalTrap
+
+// Clock returns the current time and is injected for deterministic tests.
 type Clock func() time.Time
+
+// WarningWriter reports non-fatal problems, such as history save failures.
 type WarningWriter func(string)
 
 // RenderLoopConfig carries render loop dependencies.
@@ -191,6 +201,7 @@ func (c Coordinator) Run(ctx context.Context, request Request) error {
 	return nil
 }
 
+// runCommand streams command output through the renderer while keeping progress state in sync.
 func (c Coordinator) runCommand(ctx context.Context, command string, renderingProgress bool, startTime time.Time, estimator *progress.TimelineProgressEstimator, renderer Renderer) (process.Output, error) {
 	if !renderingProgress {
 		return c.commandRunner.Run(ctx, command, nil)
@@ -219,6 +230,7 @@ func (c Coordinator) runCommand(ctx context.Context, command string, renderingPr
 	return output, joinedErr
 }
 
+// saveSuccessfulRun appends the latest successful output and warns instead of failing on save errors.
 func (c Coordinator) saveSuccessfulRun(output process.Output, history *progress.CommandHistory, request Request) {
 	updatedHistory := progress.CommandHistory{}
 	if history != nil {
@@ -235,6 +247,7 @@ func (c Coordinator) saveSuccessfulRun(output process.Output, history *progress.
 	}
 }
 
+// displayRemainingTime hides the ETA display when the estimate has no usable baseline.
 func displayRemainingTime(estimate progress.ProgressEstimate) float64 {
 	if estimate.AdjustedExpectedTotalDuration <= 0 {
 		return 0

@@ -47,7 +47,7 @@ func (e *TimelineProgressEstimator) Estimate(elapsed float64) ProgressEstimate {
 	return e.makeEstimate(elapsed)
 }
 
-// EstimateLog updates from an accumulated append-only current log.
+// EstimateLog updates from an append-only current log and resets cached state if the log shrinks.
 func (e *TimelineProgressEstimator) EstimateLog(currentLog []LineRecord, elapsed float64) ProgressEstimate {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -64,7 +64,7 @@ func (e *TimelineProgressEstimator) EstimateLog(currentLog []LineRecord, elapsed
 	return e.makeEstimate(elapsed)
 }
 
-// ObserveCurrentLine adds one current line and returns an estimate.
+// ObserveCurrentLine folds one newly observed line into the estimator and returns the updated estimate.
 func (e *TimelineProgressEstimator) ObserveCurrentLine(line LineRecord, elapsed float64) ProgressEstimate {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -74,7 +74,7 @@ func (e *TimelineProgressEstimator) ObserveCurrentLine(line LineRecord, elapsed 
 	return e.makeEstimate(elapsed)
 }
 
-// ResetCurrentLog clears cached current-log position and timeline correction.
+// ResetCurrentLog clears cached current-log position and any timeline correction derived from matches.
 func (e *TimelineProgressEstimator) ResetCurrentLog() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -82,6 +82,7 @@ func (e *TimelineProgressEstimator) ResetCurrentLog() {
 	e.resetCurrentLogState()
 }
 
+// observeCurrentLineWithoutLock advances only when the new line matches further into the reference run.
 func (e *TimelineProgressEstimator) observeCurrentLineWithoutLock(line LineRecord) {
 	match, ok := e.referenceTimeline.Match(line, e.lastMatchedReferenceIndex)
 	if !ok || match.Index <= e.lastMatchedReferenceIndex {
@@ -93,6 +94,7 @@ func (e *TimelineProgressEstimator) observeCurrentLineWithoutLock(line LineRecor
 	e.timelineOffset = match.ExpectedOffset - max(0, line.OffsetSeconds)
 }
 
+// resetCurrentLogState forgets prior matches so the estimator can replay a rebuilt current log.
 func (e *TimelineProgressEstimator) resetCurrentLogState() {
 	e.processedCurrentLineCount = 0
 	e.timelineOffset = 0
@@ -100,6 +102,7 @@ func (e *TimelineProgressEstimator) resetCurrentLogState() {
 	e.confirmedExpectedOffset = 0
 }
 
+// makeEstimate combines confirmed milestones with timer-based prediction on the weighted reference timeline.
 func (e *TimelineProgressEstimator) makeEstimate(elapsed float64) ProgressEstimate {
 	if e.referenceTimeline.ExpectedDuration <= 0 {
 		return ProgressEstimate{

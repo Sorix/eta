@@ -29,6 +29,7 @@ func NewRenderLoop(renderer Updater, estimator *progress.TimelineProgressEstimat
 	return newRenderLoop(renderer, estimator, startTime, clock, ticker.C, ticker.Stop)
 }
 
+// newRenderLoop lets tests inject a ticker and clock while keeping the production loop behavior identical.
 func newRenderLoop(renderer Updater, estimator estimateSource, startTime time.Time, clock func() time.Time, ticks <-chan time.Time, stopTicker func()) *RenderLoop {
 	if clock == nil {
 		clock = time.Now
@@ -67,6 +68,7 @@ func (l *RenderLoop) Done() <-chan struct{} {
 	return l.done
 }
 
+// run polls the estimator on each tick and stops promptly once cancellation wins the race.
 func (l *RenderLoop) run(renderer Updater, estimator estimateSource, startTime time.Time, clock func() time.Time, ticks <-chan time.Time, stopTicker func()) {
 	defer close(l.done)
 	defer stopTicker()
@@ -94,6 +96,7 @@ func (l *RenderLoop) run(renderer Updater, estimator estimateSource, startTime t
 	}
 }
 
+// displayRemainingTime suppresses the ETA display when there is no adjusted total duration yet.
 func displayRemainingTime(estimate progress.ProgressEstimate) float64 {
 	if estimate.AdjustedExpectedTotalDuration <= 0 {
 		return 0
