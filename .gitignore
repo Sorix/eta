@@ -1,8 +1,17 @@
+# Build outputs and repo-local Go caches
+.build/
+
+# Coverage and profiling artifacts
+*.coverprofile
+coverage.out
+*.prof
+cpu.out
+mem.out
+
+# OS and editor noise
 .DS_Store
-/.build
-/Packages
-xcuserdata/
-DerivedData/
-.swiftpm/configuration/registries.json
-.swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
-.netrc
+.idea/
+.vscode/
+*.swp
+*.swo
+*~

@@ -3,10 +3,10 @@
 # It does not build, compile, link, or test anything real.
 #
 # Copy/paste examples:
-#   ETA_SIM_PROFILE=stable swift run eta './examples/simulate.sh'
-#   ETA_SIM_PROFILE=random swift run eta './examples/simulate.sh'
-#   ETA_SIM_PROFILE=slow swift run eta './examples/simulate.sh'
-#   ETA_SIM_PROFILE=random swift run eta --solid './examples/simulate.sh'
+#   ETA_SIM_PROFILE=stable .build/go/eta './examples/simulate.sh'
+#   ETA_SIM_PROFILE=random .build/go/eta './examples/simulate.sh'
+#   ETA_SIM_PROFILE=slow .build/go/eta './examples/simulate.sh'
+#   ETA_SIM_PROFILE=random .build/go/eta --solid './examples/simulate.sh'
 #
 # Profiles:
 #   stable  fixed baseline sleeps
@@ -17,10 +17,10 @@
 print_intro() {
     echo "Fake eta simulation: no real build, compile, link, or tests are running."
     echo "Copy/paste examples:"
-    echo "  ETA_SIM_PROFILE=stable swift run eta './examples/simulate.sh'"
-    echo "  ETA_SIM_PROFILE=random swift run eta './examples/simulate.sh'"
-    echo "  ETA_SIM_PROFILE=slow swift run eta './examples/simulate.sh'"
-    echo "  ETA_SIM_PROFILE=random swift run eta --solid './examples/simulate.sh'"
+    echo "  ETA_SIM_PROFILE=stable .build/go/eta './examples/simulate.sh'"
+    echo "  ETA_SIM_PROFILE=random .build/go/eta './examples/simulate.sh'"
+    echo "  ETA_SIM_PROFILE=slow .build/go/eta './examples/simulate.sh'"
+    echo "  ETA_SIM_PROFILE=random .build/go/eta --solid './examples/simulate.sh'"
     echo
 }
 

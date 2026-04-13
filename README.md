@@ -26,7 +26,7 @@ This approach means `eta` is designed for **commands you run repeatedly** — an
 The progress bar has two layers: **solid fill** for lines already matched against history, and **shaded fill** for timer-based prediction ahead of the last confirmed point. You always know what's verified versus estimated.
 
 ```
-[██████████████████████▒▒▒▒▒▒▒▒▒▒           ]  64%  ETA 18s
+[██████████████████████▒▒▒▒▒▒▒▒▒▒                        ]  64%  ETA 18s
  ▲ confirmed from output ▲ predicted         ▲ remaining
 ```
 
@@ -34,8 +34,8 @@ The progress bar has two layers: **solid fill** for lines already matched agains
 
 `eta` works best with commands that produce output and are run regularly:
 
-- **Build systems** — `make`, `cmake`, `swift build`, `cargo build`, `go build`, `gradle assemble`, `npm run build`, `webpack`
-- **Test suites** — `pytest`, `swift test`, `cargo test`, `jest`, `go test ./...`
+- **Build systems** — `make`, `cmake`, `cargo build`, `go build`, `gradle assemble`, `npm run build`, `webpack`
+- **Test suites** — `pytest`, `cargo test`, `jest`, `go test ./...`
 - **CI/CD scripts** — deployment pipelines, release scripts, environment provisioning
 - **Infrastructure** — `terraform apply`, `ansible-playbook`, `docker build`
 - **Data pipelines** — database migrations, ETL jobs, batch processing scripts
@@ -49,35 +49,44 @@ The progress bar has two layers: **solid fill** for lines already matched agains
 
 **Privacy-first storage** — `eta` keeps only cryptographic hashes: SHA-256 for command keys, MD5 for output lines. History files cannot be reversed into original content.
 
-**Smart line matching** — each output line is matched against history using an exact hash first, then a normalized fallback that collapses numbers and whitespace. Lines like `[3/100] Compiling foo.swift` match across runs even when counts or paths change.
+**Smart line matching** — each output line is matched against history using an exact hash first, then a normalized fallback that collapses numbers and whitespace. Lines like `[3/100] Compiling foo.go` match across runs even when counts or paths change.
 
 **Adaptive estimates** — ETA uses an exponential weighted mean (alpha=0.3) so recent runs matter more than old ones. If your build gets faster or slower over time, `eta` adjusts.
 
 **Self-maintaining history** — stale history files are automatically pruned after 90 days. Each run is downsampled to 5,000 lines max. Old runs are rotated out (default: keep last 10).
 
 ## Install
-Software is in alpha-test, releases will be published later.
+Software is in alpha-test, releases will be published later. Installing from source builds the Go CLI.
 
-### User install
+### Requirements
 
-```sh
-git clone https://github.com/Sorix/eta
-cd eta
-make install
-```
+- Go 1.26+
+- macOS or Linux
+- Python 3 for integration/performance test scripts
 
 ### Installation
 
 ```sh
-make install # sudo required for macOS
-make uninstall # to uninstall
+git clone https://github.com/Sorix/eta
+make install    # sudo required for macOS
+make uninstall  # to uninstall
+```
+
+### Development
+
+```sh
+make build      # build .build/go/eta
+make go-test    # run Go unit tests
+make check      # format, test, vet, race, build
+make ci         # local equivalent of the CI pipeline
+scripts/go-local.sh test ./...
 ```
 
 ## Usage
 
 ```sh
 # Basic — wrap any command
-eta 'swift build 2>&1 | xcbeautify --is-ci'
+eta 'go test ./...'
 
 # Name a command for stable history across argument changes
 eta --name deploy './deploy.sh --env staging --region us-east-1'

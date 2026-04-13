@@ -1,47 +1,45 @@
-# eta — Swift CLI
+# eta — Go CLI
 
 This is the canonical AI coding instructions file for this repository. Tool-specific instruction files should import or point here instead of duplicating the guidance.
 
 ## Build & Run
 
 ```bash
-swift build 2>&1 | xcbeautify --is-ci        # debug build
-swift build -c release 2>&1 | xcbeautify --is-ci  # release build
-swift test --parallel                # Swift Testing unit/integration tests
-scripts/ci/test-simulate.sh .build/release/eta      # real simulate.sh test
-scripts/ci/test-command-key-resolution.sh .build/release/eta  # command key integration test
-scripts/ci/test-large-output.sh .build/release/eta  # large-output performance test
-scripts/ci/test-stdio-clean.sh .build/release/eta   # stdout/stderr cleanliness test
-swift run eta 'your command here'    # run directly
-make install                         # install to conventional user prefix
-sudo make install                    # system install
+make build                           # Go release-style binary at .build/go/eta
+make go-test                         # Go unit tests
+make go-vet                          # Go vet with repo-local cache/tmp dirs
+make go-race                         # Go race-sensitive suites
+make check                           # format/test/vet/race/build
+make ci                              # local equivalent of the CI pipeline
+scripts/go-local.sh test ./...       # direct Go command with repo-local build/module/tmp dirs
+scripts/go-local.sh test -race ./internal/process ./internal/render ./internal/coordinator ./internal/eta
+scripts/go-local.sh vet ./...
+test -z "$(gofmt -l $(git ls-files '*.go'))"
+scripts/ci/test-simulate.sh .build/go/eta      # real simulate.sh test
+scripts/ci/test-large-output.sh .build/go/eta  # large-output performance test
+scripts/ci/test-stdio-clean.sh .build/go/eta   # stdout/stderr cleanliness test
+.build/go/eta 'your command here'    # run built Go binary directly
+make install                         # install Go binary to conventional user prefix
+sudo make install                    # system install when PREFIX requires privileges
 ```
 
-Always pipe `swift build` output through `xcbeautify` for readable build output.
-The Makefile intentionally runs raw `swift build -c release` so installing from source does not require `xcbeautify`.
-CI runs release build, Swift tests, the real simulate example, command key resolution integration checks, the large-output performance test, and stdout/stderr cleanliness checks on Linux and macOS pull request jobs. The macOS image uses preinstalled `xcbeautify`; Linux installs it in CI.
+CI runs Go unit/format/vet/race/dependency/vulnerability checks and Go integration scripts on Linux and macOS pull request jobs.
 
 ## Project Structure
 
 ```
-Sources/
-├── ProcessProgress/         # Library target, no ArgumentParser dependency
-│   ├── Models/              # CommandHistory, CommandRun, LineRecord, ProgressEstimate, ProgressFill
-│   ├── Hashing/             # CommandFingerprint, LineHash, LineNormalizer
-│   ├── History/             # JSON load/save, pruning, line downsampling
-│   ├── Execution/           # Process wrapper, output chunks, line buffering, stdout/stderr writing
-│   ├── Matching/            # LineMatcher, ReferenceTimeline, TimelineProgressEstimator
-│   └── Support/             # Internal lock-protected storage helper
-├── EtaCLI/                  # Library target with ArgumentParser dependency
-│   ├── Command/             # ArgumentParser command, CLI flags, BarColor ArgumentParser conformance
-│   ├── Coordination/        # History/run/render orchestration, request/dependency protocols, render lifecycle
-│   ├── Rendering/           # ANSI progress/status rendering, formatting, terminal I/O
-│   └── Runtime/             # 32 ms redraw timer and SIGINT/SIGTERM cleanup/re-raise
-└── eta-cli/                 # Thin executable target "eta"
-    └── main.swift           # Calls ETA.main()
-Tests/
-├── ProcessProgressTests/    # Swift Testing coverage grouped by ProcessProgress responsibility
-└── EtaCLITests/             # Swift Testing coverage grouped by CLI responsibility
+cmd/eta/                     # Thin executable target; calls eta.Main(os.Args[1:])
+internal/
+├── eta/                     # production wiring and exit-code boundary
+├── cli/                     # pflag parsing and validation
+├── commandkey/              # stable command-key resolution
+├── coordinator/             # history/run/render workflow orchestration
+├── hashline/                # line normalization and MD5/SHA-256 hashing
+├── history/                 # JSON load/save, pruning, downsampling, clear
+├── process/                 # shell runner, stream draining, line buffering, raw pass-through
+├── progress/                # matcher, reference timeline, ETA estimator
+└── render/                  # /dev/tty, formatter, redraw locking, ticker loop, signals
+testdata/compat/             # compatibility fixtures for cross-implementation behavior
 scripts/ci/                  # GitHub Actions real/e2e and performance test scripts
 ```
 
@@ -60,32 +58,36 @@ eta <command>              Run a command with progress tracking
 
 ## Requirements
 
-- macOS 13+ / Linux (Swift toolchain)
-- Swift 6.0+
-- [xcbeautify](https://github.com/cpisciotta/xcbeautify) — `brew install xcbeautify`
-- sourcekit-lsp (ships with Xcode) — used for Swift LSP diagnostics
+- macOS / Linux
+- Go 1.26+
+- Python 3 for the integration/performance shell scripts under `scripts/ci/`
 
 ## Dependencies
 
-- [swift-argument-parser](https://github.com/apple/swift-argument-parser) 1.3+ (SPM)
+- [github.com/spf13/pflag](https://github.com/spf13/pflag) for CLI parsing
+- [golang.org/x/term](https://pkg.go.dev/golang.org/x/term) for terminal detection and width
+- [github.com/google/renameio/v2](https://github.com/google/renameio) for atomic history replacement
+
+Repo entrypoints use `scripts/go-local.sh`, which sets repo-local `GOCACHE`, `GOMODCACHE`, and `GOTMPDIR` under `.build/go/` so builds/tests don’t depend on writable user-level Go caches.
 
 ## Key Design Decisions
 
 - Progress bar writes to the controlling terminal (`/dev/tty`) — wrapped command stdout/stderr stay clean for piping/logging
 - Line matching: exact MD5 hash first, normalized fallback (numeric runs collapsed, whitespace collapsed)
-- Command keys stored as SHA256 hashes and lines stored as MD5 hashes (not raw text) for privacy — `Insecure.MD5` is fine for line matching (one-way, collisions harmless)
+- Command keys stored as SHA256 hashes and lines stored as MD5 hashes (not raw text) for privacy; MD5 is fine for line matching because collisions are harmless here
 - ETA: exponential weighted mean (α=0.3), recent runs weighted higher via `ReferenceTimeline`
 - Progress bar: `TimelineProgressEstimator` returns confirmed progress from matched historical lines plus predicted progress from timer projection; renderer draws confirmed as solid fill, predicted-only as shaded fill, and empty progress as spaces; `--solid` draws predicted progress as one solid fill; ETA is based on predicted progress
 - First run: before a command has usable history, a one-shot yellow header is printed to `/dev/tty` at the top, then command output flows normally without a progress bar; this header intentionally ignores `--color`
 - Atomic clear→write→redraw under lock prevents timer/output races
-- Command key resolution: when no `--name` is given, the first token is resolved to build a stable key. Path-based invocations (`./test.sh`, `../build.sh`) are canonicalized via C `realpath()` — the script path uniquely identifies the work. Bare-name invocations (`make`, `swift build`) are resolved via `which` and prefixed with the working directory, since the same executable in different projects does different work. Shell aliases, functions, and builtins can't be resolved, so they are treated like bare names (cwd-prefixed).
+- Command key resolution: when no `--name` is given, the first shell token is resolved to build a stable key after trimming surrounding whitespace and normalizing the separator between the executable and the remaining arguments to a single space. Path-based invocations (`./test.sh`, `../build.sh`) are canonicalized via `filepath.EvalSymlinks`/absolute path resolution. Bare-name invocations (`make`, `go build`) are resolved via `/usr/bin/which` and prefixed with the working directory, since the same executable in different projects does different work. Shell aliases, functions, and builtins can't be resolved, so they are treated like bare names (cwd-prefixed).
+- Explicit `--name` aliases are authoritative and must be non-empty after trimming whitespace.
 - History: JSON files keyed by SHA256 of the command key (`--name` or resolved command string) and storing only that hash
   - macOS: `~/Library/Caches/eta/`
   - Linux: `$XDG_CACHE_HOME/eta/` or `~/.cache/eta/`
 - Tests and CI may set `ETA_CACHE_DIR` to isolate history files in a temporary directory; this is a hidden test hook, not a user-facing CLI flag
 - Failed runs (non-zero exit) are not stored
 - Lines downsampled to 5000 max (evenly spaced) on save
-- Swift 6 strict concurrency throughout
+- Signal handling restores defaults and re-raises `SIGINT`/`SIGTERM` after render cleanup
 
 ## Progress Estimation Pipeline
 
@@ -140,7 +142,7 @@ Before the fallback hash, lines are normalized:
 
 | Original | Normalized |
 |----------|------------|
-| `[3/100] Compiling Foo.swift` | `[N/N] Compiling Foo.swift` |
+| `[3/100] Compiling Foo.go` | `[N/N] Compiling Foo.go` |
 | `Step  5  of  20` | `Step N of N` |
 | `Downloaded   128 MB` | `Downloaded N MB` |
 
