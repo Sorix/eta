@@ -156,6 +156,29 @@ func TestRunnerDrainIgnoresClosedReader(t *testing.T) {
 	}
 }
 
+func TestCollectDrainResultsAssignsByStream(t *testing.T) {
+	resultCh := make(chan drainResult, 2)
+	stderr := drainResult{
+		stream: Stderr,
+		buffer: outputLineBuffer{pending: []byte("stderr partial")},
+	}
+	stdout := drainResult{
+		stream: Stdout,
+		buffer: outputLineBuffer{pending: []byte("stdout partial")},
+	}
+
+	resultCh <- stderr
+	resultCh <- stdout
+
+	stdoutResult, stderrResult := collectDrainResults(resultCh)
+	if got := stdoutResult.buffer.flushFinalLine(0); len(got) != 1 || got[0].TextHash != hashline.Hash("stdout partial") {
+		t.Fatalf("stdout result = %#v, want stdout partial", got)
+	}
+	if got := stderrResult.buffer.flushFinalLine(0); len(got) != 1 || got[0].TextHash != hashline.Hash("stderr partial") {
+		t.Fatalf("stderr result = %#v, want stderr partial", got)
+	}
+}
+
 type closedReader struct {
 	chunks [][]byte
 	index  int

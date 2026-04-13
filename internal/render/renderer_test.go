@@ -104,7 +104,7 @@ func TestRendererWriteOutputAndRedrawTracksPartialLine(t *testing.T) {
 	if got := stderr.String(); got != "\n" {
 		t.Fatalf("stderr = %q", got)
 	}
-	if got := terminal.String(); !strings.HasSuffix(got, clearLineReturn+BuildLine(fill, 5, 5, 40, Cyan, Layered)) {
+	if got := terminal.String(); !strings.HasSuffix(got, clearLineReturn+BuildLine(fill, 5, 40, Cyan, Layered)) {
 		t.Fatalf("line-boundary redraw suffix = %q", got)
 	}
 }

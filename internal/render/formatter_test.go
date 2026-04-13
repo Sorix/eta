@@ -17,7 +17,6 @@ func TestFormatterFixtures(t *testing.T) {
 		"green layered half progress width 40": BuildLine(
 			progress.NewProgressFill(0.25, 0.5),
 			5,
-			5,
 			40,
 			Green,
 			Layered,
@@ -25,7 +24,6 @@ func TestFormatterFixtures(t *testing.T) {
 		"magenta solid full progress narrow width": BuildLine(
 			progress.NewProgressFill(1, 1),
 			0,
-			61,
 			20,
 			Magenta,
 			Solid,

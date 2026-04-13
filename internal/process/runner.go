@@ -106,8 +106,7 @@ func (r Runner) Run(ctx context.Context, command string, handler Handler) (Outpu
 		}
 	}
 
-	stdoutResult := <-resultCh
-	stderrResult := <-resultCh
+	stdoutResult, stderrResult := collectDrainResults(resultCh)
 	waitErr := cmd.Wait()
 	totalDuration := clock().Sub(start).Seconds()
 
@@ -135,13 +134,31 @@ func (r Runner) Run(ctx context.Context, command string, handler Handler) (Outpu
 }
 
 type drainResult struct {
+	stream Stream
 	buffer outputLineBuffer
 	err    error
 }
 
+func collectDrainResults(resultCh <-chan drainResult) (drainResult, drainResult) {
+	var stdoutResult drainResult
+	var stderrResult drainResult
+
+	for range 2 {
+		result := <-resultCh
+		switch result.stream {
+		case Stderr:
+			stderrResult = result
+		default:
+			stdoutResult = result
+		}
+	}
+
+	return stdoutResult, stderrResult
+}
+
 // drain copies one output stream, hashes completed lines, and emits serialized chunk events.
 func (r Runner) drain(reader io.Reader, stream Stream, start time.Time, clock func() time.Time, events chan<- Chunk) drainResult {
-	var result drainResult
+	result := drainResult{stream: stream}
 	buffer := make([]byte, readBufferSize)
 
 	for {

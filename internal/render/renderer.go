@@ -198,7 +198,7 @@ func (r *Renderer) drawLocked(fill progress.ProgressFill, remainingTime, elapsed
 		return nil
 	}
 
-	bar := BuildLine(fill, remainingTime, elapsedTime, r.terminal.Width(), r.color, r.style)
+	bar := BuildLine(fill, remainingTime, r.terminal.Width(), r.color, r.style)
 	err := errors.Join(r.hideCursorLocked(), r.writeTerminalLocked(clearLineReturn+bar))
 	r.barVisible = true
 	return err

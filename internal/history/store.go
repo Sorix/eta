@@ -161,6 +161,10 @@ func round(value float64) float64 {
 
 // pruneStale best-effort removes old JSON history files and ignores cleanup failures.
 func (s Store) pruneStale(staleAfterDays int) {
+	if staleAfterDays <= 0 {
+		return
+	}
+
 	entries, err := os.ReadDir(s.directory)
 	if err != nil {
 		return

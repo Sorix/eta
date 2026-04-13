@@ -16,8 +16,7 @@ const (
 )
 
 // BuildLine returns a determinate ETA progress bar.
-func BuildLine(fill progress.ProgressFill, remainingTime, elapsedTime float64, width int, color Color, style BarStyle) string {
-	_ = elapsedTime
+func BuildLine(fill progress.ProgressFill, remainingTime float64, width int, color Color, style BarStyle) string {
 	return buildDeterminateBar(fill, remainingTime, width, color, style)
 }
 

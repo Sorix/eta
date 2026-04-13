@@ -99,7 +99,7 @@ func TestSignalTrapSubprocessReraisesSignal(t *testing.T) {
 				t.Fatalf("Signal(%v) error = %v", sig, err)
 			}
 
-			err = cmd.Wait()
+			err = waitWithTimeout(cmd, 3*time.Second)
 			if err == nil {
 				t.Fatal("child exited successfully; want signal termination")
 			}
@@ -146,6 +146,21 @@ func waitDone(t *testing.T, done <-chan struct{}) {
 	case <-done:
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for signal trap")
+	}
+}
+
+func waitWithTimeout(cmd *exec.Cmd, timeout time.Duration) error {
+	resultCh := make(chan error, 1)
+	go func() {
+		resultCh <- cmd.Wait()
+	}()
+
+	select {
+	case err := <-resultCh:
+		return err
+	case <-time.After(timeout):
+		_ = cmd.Process.Kill()
+		return fmt.Errorf("timed out waiting for subprocess exit after %s", timeout)
 	}
 }
 

@@ -153,6 +153,30 @@ func TestPrunesStaleJSONFilesAfterSave(t *testing.T) {
 	}
 }
 
+func TestSaveDoesNotPruneWhenStaleAfterDaysIsNonPositive(t *testing.T) {
+	dir := t.TempDir()
+	now := time.Date(2026, 4, 13, 12, 0, 0, 0, time.UTC)
+	store := newStoreWithClock(dir, func() time.Time { return now })
+
+	stale := filepath.Join(dir, "stale.json")
+	if err := os.WriteFile(stale, []byte("{}"), 0o644); err != nil {
+		t.Fatalf("write stale file: %v", err)
+	}
+	oldTime := now.Add(-72 * time.Hour)
+	if err := os.Chtimes(stale, oldTime, oldTime); err != nil {
+		t.Fatalf("chtimes stale file: %v", err)
+	}
+
+	if err := store.Save(progress.CommandHistory{Runs: []progress.CommandRun{
+		{Date: now, TotalDuration: 1, LineRecords: []progress.LineRecord{makeLine("line", 1)}},
+	}}, "command", 10, 0); err != nil {
+		t.Fatalf("Save returned error: %v", err)
+	}
+	if _, err := os.Stat(stale); err != nil {
+		t.Fatalf("stale JSON file should be retained when pruning disabled: %v", err)
+	}
+}
+
 func TestDownsamplesToMaximumLinesAndPreservesFirstAndLast(t *testing.T) {
 	store := NewStore(t.TempDir())
 	lineCount := maxLinesPerRun + 1234
