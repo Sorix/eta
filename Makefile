@@ -9,9 +9,19 @@ else
 endif
 
 PREFIX ?= $(DEFAULT_PREFIX)
+GO ?= go
+GO_BUILD_DIR := .build/go
+GO_ETA := $(GO_BUILD_DIR)/eta
 
 build:
 	swift build -c release
+
+go-build:
+	install -d "$(GO_BUILD_DIR)"
+	$(GO) build -o "$(GO_ETA)" ./cmd/eta
+
+go-test:
+	$(GO) test ./...
 
 install: build
 	install -d "$(PREFIX)/bin"
@@ -23,4 +33,4 @@ uninstall:
 clean:
 	swift package clean
 
-.PHONY: build install uninstall clean
+.PHONY: build go-build go-test install uninstall clean

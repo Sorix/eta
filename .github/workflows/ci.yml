@@ -16,10 +16,35 @@ concurrency:
 
 env:
   SWIFT_VERSION: "6.2"
+  GO_VERSION: "1.26.x"
   XCBEAUTIFY_VERSION: "3.2.1"
   XCBEAUTIFY_SHA256: "f181ada16c637adb2ce7a58141f9182755ad382f2540042b215b9e6aa65c1977"
 
 jobs:
+  go:
+    name: Go Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - macos-26
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Perform Go tests
+        run: go test ./...
+
   unit:
     name: Unit Tests (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

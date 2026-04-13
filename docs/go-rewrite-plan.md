@@ -20,7 +20,7 @@ The Go binary must preserve:
 - Wrapped command execution through `$SHELL -c <command>` or `/bin/sh -c <command>`.
 - Wrapped stdout/stderr pass through unchanged and remain separate.
 - Progress and final status write only to `/dev/tty`.
-- First run with no history writes the yellow header and no progress bar.
+- Non-quiet first run with no history writes the yellow header and no progress bar; `--quiet` suppresses that header while still saving successful history.
 - Non-zero wrapped command exits with the same code and does not save history.
 - Successful runs save history even when quiet or rendering is disabled.
 - History directory: `ETA_CACHE_DIR`, otherwise user cache dir plus `eta`.
@@ -94,21 +94,21 @@ Rules:
 
 Checked against upstream package metadata on 2026-04-13.
 
-| Area | Decision |
-| --- | --- |
-| CLI flags | Use `github.com/spf13/pflag`. Small and enough for a single-command wrapper. |
-| CLI frameworks | Do not use Cobra or Kong in MVP. Reconsider only if real subcommands are added. |
-| Terminal | Use `golang.org/x/term` for terminal detection and width. |
-| Goroutine coordination | Use `golang.org/x/sync/errgroup` only where clearer than `sync.WaitGroup`. |
-| Atomic writes | Use `github.com/google/renameio/v2` for history writes. |
-| Test diffs | Use `github.com/google/go-cmp` in tests only when useful. |
-| Hashing, JSON, time, process | Use standard library. |
-| ANSI rendering | No library; direct escape sequences are simpler. |
-| TUI libraries | Do not use Bubble Tea/Lip Gloss. `eta` is one status line, not a TUI. |
-| Shell parser | Do not use `mvdan.cc/sh/v3` in MVP; it would change command-key compatibility. |
-| Security scan | Use pinned `golang.org/x/vuln/cmd/govulncheck`. |
-| Linting | Evaluate pinned `golangci-lint` as a CI tool only. Keep rules high-signal. |
-| Release | Evaluate GoReleaser after parity for archives, checksums, SBOMs, and attestations. |
+| Area | Decision | License / maintenance note |
+| --- | --- | --- |
+| CLI flags | Use `github.com/spf13/pflag`. Small and enough for a single-command wrapper. | BSD-3-Clause, stable v1 module, broadly used. |
+| CLI frameworks | Do not use Cobra or Kong in MVP. Reconsider only if real subcommands are added. | Avoids framework dependency until the CLI shape justifies it. |
+| Terminal | Use `golang.org/x/term` for terminal detection and width. | BSD-3-Clause, maintained by the Go project, tagged with current `x/*` releases. |
+| Goroutine coordination | Use `golang.org/x/sync/errgroup` only where clearer than `sync.WaitGroup`. | BSD-3-Clause, maintained by the Go project; keep usage narrow because it is not needed for pure package code. |
+| Atomic writes | Use `github.com/google/renameio/v2` for history writes. | Apache-2.0, small focused module; use for atomic replace semantics, not durability guarantees. |
+| Test diffs | Use `github.com/google/go-cmp` in tests only when useful. | BSD-3-Clause, mature test-only dependency; do not use in production packages. |
+| Hashing, JSON, time, process | Use standard library. | Prefer stdlib for stable behavior and smaller binary surface. |
+| ANSI rendering | No library; direct escape sequences are simpler. | Avoids unnecessary rendering dependency for one status line. |
+| TUI libraries | Do not use Bubble Tea/Lip Gloss. `eta` is one status line, not a TUI. | Avoids transitive UI dependencies and behavior drift. |
+| Shell parser | Do not use `mvdan.cc/sh/v3` in MVP; it would change command-key compatibility. | Deferred to a separate migration because parser-aware keys can split existing history. |
+| Security scan | Use pinned `golang.org/x/vuln/cmd/govulncheck`. | BSD-3-Clause, Go vulnerability tooling; pin version in CI/tooling once Go module exists. |
+| Linting | Evaluate pinned `golangci-lint` as a CI tool only. Keep rules high-signal. | GPL-3.0 tool, not a production dependency; evaluate after parity and pin only if rules add signal. |
+| Release | Evaluate GoReleaser after parity for archives, checksums, SBOMs, and attestations. | Tooling-only decision after implementation and dependency audit stabilize. |
 
 Before adding any dependency:
 
