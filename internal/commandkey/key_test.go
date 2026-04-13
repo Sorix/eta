@@ -45,6 +45,59 @@ func TestResolveMissingExecutableUsesCwdAndOriginalCommand(t *testing.T) {
 	}
 }
 
+func TestResolveMissingPathUsesCwdAndOriginalCommand(t *testing.T) {
+	r := testResolver("/workspace/project", nil, nil)
+
+	got := r.resolve("./missing.sh --flag")
+	want := "/workspace/project\n./missing.sh --flag"
+	if got != want {
+		t.Fatalf("resolve missing path = %q, want %q", got, want)
+	}
+}
+
+func TestResolveCanonicalizesExistingPathsAcrossRelativeAndAbsoluteForms(t *testing.T) {
+	root := t.TempDir()
+	script := filepath.Join(root, "work", "scripts", "task.sh")
+	if err := os.MkdirAll(filepath.Dir(script), 0o755); err != nil {
+		t.Fatalf("MkdirAll returned error: %v", err)
+	}
+	if err := os.WriteFile(script, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd returned error: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(cwd); err != nil {
+			t.Fatalf("restore cwd: %v", err)
+		}
+	})
+	nested := filepath.Join(root, "work", "nested")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatalf("MkdirAll returned error: %v", err)
+	}
+
+	if err := os.Chdir(filepath.Join(root, "work")); err != nil {
+		t.Fatalf("Chdir work returned error: %v", err)
+	}
+	relativeKey := Resolve("./scripts/task.sh --flag")
+
+	if err := os.Chdir(nested); err != nil {
+		t.Fatalf("Chdir nested returned error: %v", err)
+	}
+	parentRelativeKey := Resolve("../scripts/task.sh --flag")
+	absoluteKey := Resolve(script + " --flag")
+
+	if relativeKey != parentRelativeKey {
+		t.Fatalf("relative key = %q, parent-relative key = %q; want equal", relativeKey, parentRelativeKey)
+	}
+	if relativeKey != absoluteKey {
+		t.Fatalf("relative key = %q, absolute key = %q; want equal", relativeKey, absoluteKey)
+	}
+}
+
 func TestResolveSplitsAtFirstLiteralSpaceOnly(t *testing.T) {
 	r := testResolver(
 		"/workspace/project",

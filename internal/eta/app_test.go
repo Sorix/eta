@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/Sorix/eta/internal/coordinator"
+	"github.com/Sorix/eta/internal/hashline"
 	"github.com/Sorix/eta/internal/process"
 	"github.com/Sorix/eta/internal/progress"
 	"github.com/Sorix/eta/internal/render"
@@ -140,6 +142,38 @@ func TestAppRunnerErrorReturnsFailure(t *testing.T) {
 	}
 	if !strings.Contains(app.Stderr.(*bytes.Buffer).String(), "runner failed") {
 		t.Fatalf("stderr = %q; want runner failed", app.Stderr.(*bytes.Buffer).String())
+	}
+}
+
+func TestAppHistoryStoreUsesETACacheDir(t *testing.T) {
+	directory := t.TempDir()
+	t.Setenv("ETA_CACHE_DIR", directory)
+
+	store, err := App{}.historyStore()
+	if err != nil {
+		t.Fatalf("historyStore returned error: %v", err)
+	}
+
+	if err := store.Save(progress.CommandHistory{Runs: []progress.CommandRun{
+		{
+			Date:          time.Unix(0, 0).UTC(),
+			TotalDuration: 1,
+			LineRecords:   []progress.LineRecord{{TextHash: "a", NormalizedHash: "a", OffsetSeconds: 1}},
+		},
+	}}, "command", 10, 90); err != nil {
+		t.Fatalf("Save returned error: %v", err)
+	}
+
+	entries, err := os.ReadDir(directory)
+	if err != nil {
+		t.Fatalf("ReadDir returned error: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("entry count = %d, want 1", len(entries))
+	}
+	want := hashline.CommandFingerprint("command") + ".json"
+	if entries[0].Name() != want {
+		t.Fatalf("entry name = %q, want %q", entries[0].Name(), want)
 	}
 }
 

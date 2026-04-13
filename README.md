@@ -83,7 +83,8 @@ make uninstall # to uninstall
 ```sh
 make build      # build .build/go/eta
 make go-test    # run Go unit tests
-
+make check      # format, test, vet, race, build
+scripts/go-local.sh test ./...
 ```
 
 ## Usage

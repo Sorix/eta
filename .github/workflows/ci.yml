@@ -40,17 +40,17 @@ jobs:
           cache: true
 
       - name: Perform Go tests
-        run: go test ./...
+        run: scripts/go-local.sh test ./...
 
       - name: Check Go formatting
         run: |
           test -z "$(gofmt -l $(git ls-files '*.go'))"
 
       - name: Run go vet
-        run: go vet ./...
+        run: scripts/go-local.sh vet ./...
 
       - name: Run race-sensitive suites
-        run: go test -race ./internal/process ./internal/render ./internal/coordinator ./internal/eta
+        run: scripts/go-local.sh test -race ./internal/process ./internal/render ./internal/coordinator ./internal/eta
 
       - name: Check dependency freshness
         run: go list -m -u -json all
@@ -101,7 +101,7 @@ jobs:
         id: command-key
         continue-on-error: true
         run: |
-          scripts/ci/test-command-key-resolution.sh .build/release/eta
+          scripts/ci/test-command-key-resolution.sh .build/go/eta
 
       - name: Upload command-key diagnostics
         if: ${{ steps.command-key.outcome == 'failure' }}

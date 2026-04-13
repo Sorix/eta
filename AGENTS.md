@@ -7,9 +7,12 @@ This is the canonical AI coding instructions file for this repository. Tool-spec
 ```bash
 make build                           # Go release-style binary at .build/go/eta
 make go-test                         # Go unit tests
-env GOCACHE=/tmp/eta-go-build go test ./...
-env GOCACHE=/tmp/eta-go-build go test -race ./internal/process ./internal/render ./internal/coordinator ./internal/eta
-env GOCACHE=/tmp/eta-go-build go vet ./...
+make go-vet                          # Go vet with repo-local cache/tmp dirs
+make go-race                         # Go race-sensitive suites
+make check                           # format/test/vet/race/build
+scripts/go-local.sh test ./...       # direct Go command with repo-local build/module/tmp dirs
+scripts/go-local.sh test -race ./internal/process ./internal/render ./internal/coordinator ./internal/eta
+scripts/go-local.sh vet ./...
 test -z "$(gofmt -l $(git ls-files '*.go'))"
 scripts/ci/test-simulate.sh .build/go/eta      # real simulate.sh test
 scripts/ci/test-large-output.sh .build/go/eta  # large-output performance test
@@ -63,6 +66,8 @@ eta <command>              Run a command with progress tracking
 - [github.com/spf13/pflag](https://github.com/spf13/pflag) for CLI parsing
 - [golang.org/x/term](https://pkg.go.dev/golang.org/x/term) for terminal detection and width
 - [github.com/google/renameio/v2](https://github.com/google/renameio) for atomic history replacement
+
+Repo entrypoints use `scripts/go-local.sh`, which sets repo-local `GOCACHE`, `GOMODCACHE`, and `GOTMPDIR` under `.build/go/` so builds/tests don’t depend on writable user-level Go caches.
 
 ## Key Design Decisions
 

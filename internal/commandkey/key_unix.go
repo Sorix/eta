@@ -7,15 +7,15 @@ import (
 )
 
 func realpath(path string) (string, bool) {
-	resolved, err := filepath.EvalSymlinks(path)
+	absolute, err := filepath.Abs(path)
 	if err != nil {
 		return "", false
 	}
-	absolute, err := filepath.Abs(resolved)
+	resolved, err := filepath.EvalSymlinks(absolute)
 	if err != nil {
-		return resolved, true
+		return "", false
 	}
-	return absolute, true
+	return resolved, true
 }
 
 func whichPath(executable string) (string, bool) {
