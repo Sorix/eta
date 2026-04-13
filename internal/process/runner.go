@@ -79,9 +79,9 @@ func (r Runner) Run(ctx context.Context, command string, handler Handler) (Outpu
 		stderrCh <- r.drain(stderr, Stderr, start, handler, &collector)
 	}()
 
-	waitErr := cmd.Wait()
 	stdoutResult := <-stdoutCh
 	stderrResult := <-stderrCh
+	waitErr := cmd.Wait()
 	totalDuration := time.Since(start).Seconds()
 
 	collector.append(stdoutResult.buffer.flushFinalLine(totalDuration)...)
