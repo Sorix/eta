@@ -291,7 +291,7 @@ func (h *coordinatorHarness) coordinator() Coordinator {
 
 func (h *coordinatorHarness) request(mutators ...func(*Request)) Request {
 	request := Request{
-		Command:         "swift build",
+		Command:         "go build",
 		CommandKey:      "alias",
 		MaximumRunCount: 7,
 		Color:           render.Cyan,

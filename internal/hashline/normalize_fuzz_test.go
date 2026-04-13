@@ -8,7 +8,7 @@ import (
 
 func FuzzNormalize(f *testing.F) {
 	var fixture hashlineFixture
-	readFixture(f, "testdata/swift-compat/hashline.json", &fixture)
+	readFixture(f, "testdata/compat/hashline.json", &fixture)
 	for _, tc := range fixture.Cases {
 		f.Add(tc.Input)
 	}

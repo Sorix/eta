@@ -34,15 +34,15 @@ func TestAppClearModes(t *testing.T) {
 		app := testApp()
 		store := app.Store.(*fakeEtaStore)
 
-		code := app.Run([]string{"--clear", "swift build"})
+		code := app.Run([]string{"--clear", "go build"})
 
 		if code != 0 {
 			t.Fatalf("exit code = %d; want 0", code)
 		}
-		if got := store.clearedKeys; strings.Join(got, ",") != "resolved:swift build" {
+		if got := store.clearedKeys; strings.Join(got, ",") != "resolved:go build" {
 			t.Fatalf("cleared keys = %#v; want resolved key", got)
 		}
-		if got := app.Stdout.(*bytes.Buffer).String(); got != "Cleared history for 'swift build'.\n" {
+		if got := app.Stdout.(*bytes.Buffer).String(); got != "Cleared history for 'go build'.\n" {
 			t.Fatalf("stdout = %q", got)
 		}
 	})
@@ -72,7 +72,7 @@ func TestAppRunUsesNameOrResolvedCommandKey(t *testing.T) {
 		runner := app.CommandRunner.(*fakeEtaRunner)
 		runner.output = process.Output{TotalDuration: 1}
 
-		code := app.Run([]string{"--name", "alias", "swift build"})
+		code := app.Run([]string{"--name", "alias", "go build"})
 
 		if code != 0 {
 			t.Fatalf("exit code = %d; want 0", code)
@@ -88,7 +88,7 @@ func TestAppRunUsesNameOrResolvedCommandKey(t *testing.T) {
 		runner := app.CommandRunner.(*fakeEtaRunner)
 		runner.output = process.Output{TotalDuration: 1}
 
-		code := app.Run([]string{"--name", "", "swift build"})
+		code := app.Run([]string{"--name", "", "go build"})
 
 		if code != 0 {
 			t.Fatalf("exit code = %d; want 0", code)
@@ -104,12 +104,12 @@ func TestAppRunUsesNameOrResolvedCommandKey(t *testing.T) {
 		runner := app.CommandRunner.(*fakeEtaRunner)
 		runner.output = process.Output{TotalDuration: 1}
 
-		code := app.Run([]string{"swift build"})
+		code := app.Run([]string{"go build"})
 
 		if code != 0 {
 			t.Fatalf("exit code = %d; want 0", code)
 		}
-		if got := store.saved[0].commandKey; got != "resolved:swift build" {
+		if got := store.saved[0].commandKey; got != "resolved:go build" {
 			t.Fatalf("saved command key = %q; want resolved command", got)
 		}
 	})
@@ -120,7 +120,7 @@ func TestAppWrappedCommandExitCodeIsReturned(t *testing.T) {
 	runner := app.CommandRunner.(*fakeEtaRunner)
 	runner.output = process.Output{TotalDuration: 1, ExitCode: 17}
 
-	code := app.Run([]string{"swift build"})
+	code := app.Run([]string{"go build"})
 
 	if code != 17 {
 		t.Fatalf("exit code = %d; want 17", code)
@@ -135,7 +135,7 @@ func TestAppRunnerErrorReturnsFailure(t *testing.T) {
 	runner := app.CommandRunner.(*fakeEtaRunner)
 	runner.err = errors.New("runner failed")
 
-	code := app.Run([]string{"swift build"})
+	code := app.Run([]string{"go build"})
 
 	if code != 1 {
 		t.Fatalf("exit code = %d; want 1", code)

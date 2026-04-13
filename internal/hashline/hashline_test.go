@@ -23,9 +23,9 @@ type testHelper interface {
 	Fatalf(format string, args ...any)
 }
 
-func TestSwiftHashlineFixtures(t *testing.T) {
+func TestHashlineFixtures(t *testing.T) {
 	var fixture hashlineFixture
-	readFixture(t, "testdata/swift-compat/hashline.json", &fixture)
+	readFixture(t, "testdata/compat/hashline.json", &fixture)
 
 	for _, tc := range fixture.Cases {
 		t.Run(tc.Name, func(t *testing.T) {
@@ -43,7 +43,7 @@ func TestSwiftHashlineFixtures(t *testing.T) {
 }
 
 func TestCommandFingerprint(t *testing.T) {
-	const command = "swift build 2>&1 | xcbeautify --is-ci"
+	const command = "go build 2>&1 | xcbeautify --is-ci"
 	fingerprint := CommandFingerprint(command)
 
 	if fingerprint != CommandFingerprint(command) {

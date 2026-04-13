@@ -39,7 +39,7 @@ internal/
 ├── progress/                # matcher, reference timeline, ETA estimator
 ├── render/                  # /dev/tty, formatter, redraw locking, ticker loop, signals
 └── testutil/                # test support
-testdata/swift-compat/       # compatibility fixtures from the Swift implementation
+testdata/compat/             # compatibility fixtures for cross-implementation behavior
 scripts/ci/                  # GitHub Actions real/e2e and performance test scripts
 ```
 
@@ -78,7 +78,7 @@ Repo entrypoints use `scripts/go-local.sh`, which sets repo-local `GOCACHE`, `GO
 - Progress bar: `TimelineProgressEstimator` returns confirmed progress from matched historical lines plus predicted progress from timer projection; renderer draws confirmed as solid fill, predicted-only as shaded fill, and empty progress as spaces; `--solid` draws predicted progress as one solid fill; ETA is based on predicted progress
 - First run: before a command has usable history, a one-shot yellow header is printed to `/dev/tty` at the top, then command output flows normally without a progress bar; this header intentionally ignores `--color`
 - Atomic clear→write→redraw under lock prevents timer/output races
-- Command key resolution: when no `--name` is given, the first token is resolved to build a stable key. Path-based invocations (`./test.sh`, `../build.sh`) are canonicalized via `filepath.EvalSymlinks`/absolute path resolution. Bare-name invocations (`make`, `swift build`) are resolved via `/usr/bin/which` and prefixed with the working directory, since the same executable in different projects does different work. Shell aliases, functions, and builtins can't be resolved, so they are treated like bare names (cwd-prefixed).
+- Command key resolution: when no `--name` is given, the first token is resolved to build a stable key. Path-based invocations (`./test.sh`, `../build.sh`) are canonicalized via `filepath.EvalSymlinks`/absolute path resolution. Bare-name invocations (`make`, `go build`) are resolved via `/usr/bin/which` and prefixed with the working directory, since the same executable in different projects does different work. Shell aliases, functions, and builtins can't be resolved, so they are treated like bare names (cwd-prefixed).
 - History: JSON files keyed by SHA256 of the command key (`--name` or resolved command string) and storing only that hash
   - macOS: `~/Library/Caches/eta/`
   - Linux: `$XDG_CACHE_HOME/eta/` or `~/.cache/eta/`
@@ -140,7 +140,7 @@ Before the fallback hash, lines are normalized:
 
 | Original | Normalized |
 |----------|------------|
-| `[3/100] Compiling Foo.swift` | `[N/N] Compiling Foo.swift` |
+| `[3/100] Compiling Foo.go` | `[N/N] Compiling Foo.go` |
 | `Step  5  of  20` | `Step N of N` |
 | `Downloaded   128 MB` | `Downloaded N MB` |
 

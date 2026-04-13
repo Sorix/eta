@@ -1,6 +1,6 @@
 {
   "notes": [
-    "Generated from Swift ProgressBarFormatter and ProgressTimeFormatter.",
+    "Generated from eta progress bar and time formatting.",
     "Raw values include ANSI escape sequences and Unicode bar glyphs."
   ],
   "cases": [

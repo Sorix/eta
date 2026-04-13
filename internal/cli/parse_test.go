@@ -57,14 +57,14 @@ func TestParseRunModeOptions(t *testing.T) {
 		"--solid",
 		"--runs", "4",
 		"--color", "cyan",
-		"swift build",
+		"go build",
 	})
 	if err != nil {
 		t.Fatalf("Parse() error = %v", err)
 	}
 
-	if request.Mode != ModeRun || request.Command != "swift build" {
-		t.Fatalf("request mode/command = (%v, %q); want run swift build", request.Mode, request.Command)
+	if request.Mode != ModeRun || request.Command != "go build" {
+		t.Fatalf("request mode/command = (%v, %q); want run go build", request.Mode, request.Command)
 	}
 	if request.Name != "build" {
 		t.Fatalf("Name = %q; want build", request.Name)
@@ -87,12 +87,12 @@ func TestParseRunModeOptions(t *testing.T) {
 }
 
 func TestParseClearModes(t *testing.T) {
-	clearRequest, err := Parse([]string{"--clear", "swift build"})
+	clearRequest, err := Parse([]string{"--clear", "go build"})
 	if err != nil {
 		t.Fatalf("Parse(clear) error = %v", err)
 	}
-	if clearRequest.Mode != ModeClear || clearRequest.ClearCommand != "swift build" {
-		t.Fatalf("clear request = (%v, %q); want clear swift build", clearRequest.Mode, clearRequest.ClearCommand)
+	if clearRequest.Mode != ModeClear || clearRequest.ClearCommand != "go build" {
+		t.Fatalf("clear request = (%v, %q); want clear go build", clearRequest.Mode, clearRequest.ClearCommand)
 	}
 	if !clearRequest.ClearCommandSet {
 		t.Fatal("ClearCommandSet = false; want true")

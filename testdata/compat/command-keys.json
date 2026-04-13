@@ -1,6 +1,6 @@
 {
   "notes": [
-    "Generated from Swift ETA.resolvedCommandKey in the repository root.",
+    "Generated from eta command-key resolution in the repository root.",
     "Expected values are environment-specific where they include cwd or which(1) output; portableTemplate describes the rule."
   ],
   "cwd": "/Users/vasily/Git/eta",
@@ -25,9 +25,9 @@
     },
     {
       "name": "multiple spaces preserve rest after first literal space",
-      "command": "swift  build",
-      "expected": "/Users/vasily/Git/eta\n/usr/bin/swift  build",
-      "portableTemplate": "{cwd}\\n{which:swift}  build"
+      "command": "go  build",
+      "expected": "/Users/vasily/Git/eta\n/opt/homebrew/bin/go  build",
+      "portableTemplate": "{cwd}\\n{which:go}  build"
     }
   ]
 }

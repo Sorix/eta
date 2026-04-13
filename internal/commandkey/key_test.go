@@ -25,11 +25,11 @@ func TestResolveBareExecutableUsesCwdAndWhichPath(t *testing.T) {
 	r := testResolver(
 		"/workspace/project",
 		nil,
-		map[string]string{"swift": "/usr/bin/swift"},
+		map[string]string{"go": "/usr/local/bin/go"},
 	)
 
-	got := r.resolve("swift build")
-	want := "/workspace/project\n/usr/bin/swift build"
+	got := r.resolve("go build")
+	want := "/workspace/project\n/usr/local/bin/go build"
 	if got != want {
 		t.Fatalf("resolve bare executable = %q, want %q", got, want)
 	}
@@ -103,7 +103,7 @@ func TestResolveSplitsAtFirstLiteralSpaceOnly(t *testing.T) {
 		"/workspace/project",
 		nil,
 		map[string]string{
-			"swift":     "/usr/bin/swift",
+			"go":        "/usr/local/bin/go",
 			"tool\targ": "/bin/tool-tab",
 		},
 	)
@@ -115,8 +115,8 @@ func TestResolveSplitsAtFirstLiteralSpaceOnly(t *testing.T) {
 	}{
 		{
 			name:    "preserves repeated spaces after executable",
-			command: "swift  build",
-			want:    "/workspace/project\n/usr/bin/swift  build",
+			command: "go  build",
+			want:    "/workspace/project\n/usr/local/bin/go  build",
 		},
 		{
 			name:    "does not split on tab",
@@ -125,8 +125,8 @@ func TestResolveSplitsAtFirstLiteralSpaceOnly(t *testing.T) {
 		},
 		{
 			name:    "trims outer whitespace before resolving executable",
-			command: "  swift build  ",
-			want:    "/workspace/project\n/usr/bin/swift build",
+			command: "  go build  ",
+			want:    "/workspace/project\n/usr/local/bin/go build",
 		},
 	}
 
@@ -139,9 +139,9 @@ func TestResolveSplitsAtFirstLiteralSpaceOnly(t *testing.T) {
 	}
 }
 
-func TestSwiftCommandKeyFixtures(t *testing.T) {
+func TestCommandKeyFixtures(t *testing.T) {
 	var fixture commandKeyFixture
-	readFixture(t, "testdata/swift-compat/command-keys.json", &fixture)
+	readFixture(t, "testdata/compat/command-keys.json", &fixture)
 	chdirRepoRoot(t)
 
 	for _, tc := range fixture.Cases {
@@ -198,8 +198,8 @@ func portableCommandKey(t *testing.T, command, template string) string {
 		return resolved + " FOO=1"
 	case "{cwd}\\nno_such_command_xyz --flag":
 		return cwd + "\n" + command
-	case "{cwd}\\n{which:swift}  build":
-		return cwd + "\n" + mustWhich(t, "swift") + "  build"
+	case "{cwd}\\n{which:go}  build":
+		return cwd + "\n" + mustWhich(t, "go") + "  build"
 	default:
 		t.Fatalf("unsupported fixture template %q", template)
 		return ""

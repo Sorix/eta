@@ -25,14 +25,14 @@ func TestLoadReturnsNilWhenHistoryFileIsMissing(t *testing.T) {
 	}
 }
 
-func TestLoadsSwiftJSONFixture(t *testing.T) {
+func TestLoadsHistoryJSONFixture(t *testing.T) {
 	var metadata historyMetadata
-	readFixture(t, "testdata/swift-compat/history-metadata.json", &metadata)
+	readFixture(t, "testdata/compat/history-metadata.json", &metadata)
 
 	dir := t.TempDir()
-	fixtureData, err := os.ReadFile(filepath.Join("..", "..", "testdata/swift-compat", metadata.FileName))
+	fixtureData, err := os.ReadFile(filepath.Join("..", "..", "testdata/compat", metadata.FileName))
 	if err != nil {
-		t.Fatalf("read Swift history fixture: %v", err)
+		t.Fatalf("read history fixture: %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, metadata.FileName), fixtureData, 0o644); err != nil {
 		t.Fatalf("write fixture copy: %v", err)

@@ -34,8 +34,8 @@ The progress bar has two layers: **solid fill** for lines already matched agains
 
 `eta` works best with commands that produce output and are run regularly:
 
-- **Build systems** — `make`, `cmake`, `swift build`, `cargo build`, `go build`, `gradle assemble`, `npm run build`, `webpack`
-- **Test suites** — `pytest`, `swift test`, `cargo test`, `jest`, `go test ./...`
+- **Build systems** — `make`, `cmake`, `cargo build`, `go build`, `gradle assemble`, `npm run build`, `webpack`
+- **Test suites** — `pytest`, `cargo test`, `jest`, `go test ./...`
 - **CI/CD scripts** — deployment pipelines, release scripts, environment provisioning
 - **Infrastructure** — `terraform apply`, `ansible-playbook`, `docker build`
 - **Data pipelines** — database migrations, ETL jobs, batch processing scripts
@@ -49,7 +49,7 @@ The progress bar has two layers: **solid fill** for lines already matched agains
 
 **Privacy-first storage** — `eta` keeps only cryptographic hashes: SHA-256 for command keys, MD5 for output lines. History files cannot be reversed into original content.
 
-**Smart line matching** — each output line is matched against history using an exact hash first, then a normalized fallback that collapses numbers and whitespace. Lines like `[3/100] Compiling foo.swift` match across runs even when counts or paths change.
+**Smart line matching** — each output line is matched against history using an exact hash first, then a normalized fallback that collapses numbers and whitespace. Lines like `[3/100] Compiling foo.go` match across runs even when counts or paths change.
 
 **Adaptive estimates** — ETA uses an exponential weighted mean (alpha=0.3) so recent runs matter more than old ones. If your build gets faster or slower over time, `eta` adjusts.
 

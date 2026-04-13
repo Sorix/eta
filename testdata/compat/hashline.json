@@ -1,15 +1,15 @@
 {
   "notes": [
-    "Generated from Swift LineNormalizer, LineHash, and CommandFingerprint.",
-    "Swift Character.isNumber and Character.isWhitespace semantics are part of this fixture."
+    "Generated from eta line normalization, line hashing, and command fingerprinting.",
+    "Unicode numeric and whitespace semantics are part of this fixture."
   ],
   "cases": [
     {
       "name": "compiler progress",
-      "input": "[3/100]   Compiling  Foo.swift",
-      "normalized": "[N/N] Compiling Foo.swift",
-      "textHash": "5d056ba99f171c048202b02dae22cf47",
-      "normalizedHash": "9e97716ac06de3c33193af45e300f654"
+      "input": "[3/100]   Compiling  Foo.go",
+      "normalized": "[N/N] Compiling Foo.go",
+      "textHash": "ca9655d24651782080e89609fb1d9b46",
+      "normalizedHash": "b85e2fe78e4553a6a16311a91ba34938"
     },
     {
       "name": "trim and whitespace collapse",

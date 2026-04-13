@@ -9,9 +9,9 @@ import (
 	"github.com/Sorix/eta/internal/progress"
 )
 
-func TestSwiftFormatterFixtures(t *testing.T) {
+func TestFormatterFixtures(t *testing.T) {
 	var fixture formatterFixture
-	readFixture(t, "testdata/swift-compat/formatter.json", &fixture)
+	readFixture(t, "testdata/compat/formatter.json", &fixture)
 
 	tests := map[string]string{
 		"green layered half progress width 40": BuildLine(
