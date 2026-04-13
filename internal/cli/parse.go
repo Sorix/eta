@@ -1,1 +1,101 @@
 package cli
+
+import (
+	"fmt"
+	"io"
+
+	"github.com/spf13/pflag"
+)
+
+const defaultMaximumRunCount = 10
+
+// Mode identifies the selected CLI action.
+type Mode int
+
+const (
+	ModeRun Mode = iota + 1
+	ModeClear
+	ModeClearAll
+)
+
+// Request is the validated CLI request.
+type Request struct {
+	Mode            Mode
+	Command         string
+	Name            string
+	ClearCommand    string
+	Quiet           bool
+	Solid           bool
+	MaximumRunCount int
+	Color           string
+}
+
+// Parse parses and validates eta command-line arguments.
+func Parse(args []string) (Request, error) {
+	var request Request
+	request.MaximumRunCount = defaultMaximumRunCount
+	request.Color = "green"
+
+	flags := pflag.NewFlagSet("eta", pflag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	flags.StringVar(&request.Name, "name", "", "custom command name")
+	flags.StringVar(&request.ClearCommand, "clear", "", "clear command history")
+	flags.BoolVar(&request.Quiet, "quiet", false, "learn without rendering")
+	flags.BoolVar(&request.Solid, "solid", false, "draw solid progress")
+	flags.IntVar(&request.MaximumRunCount, "runs", defaultMaximumRunCount, "history depth")
+	flags.StringVar(&request.Color, "color", "green", "progress bar color")
+
+	var clearAll bool
+	flags.BoolVar(&clearAll, "clear-all", false, "clear all history")
+
+	if err := flags.Parse(args); err != nil {
+		return Request{}, err
+	}
+
+	if err := validateColor(request.Color); err != nil {
+		return Request{}, err
+	}
+	if request.MaximumRunCount <= 0 {
+		return Request{}, fmt.Errorf("--runs must be greater than 0")
+	}
+
+	positionals := flags.Args()
+	if len(positionals) > 1 {
+		return Request{}, fmt.Errorf("expected at most one command argument")
+	}
+	if len(positionals) == 1 {
+		request.Command = positionals[0]
+	}
+
+	activeModes := 0
+	if request.Command != "" {
+		request.Mode = ModeRun
+		activeModes++
+	}
+	if request.ClearCommand != "" {
+		request.Mode = ModeClear
+		activeModes++
+	}
+	if clearAll {
+		request.Mode = ModeClearAll
+		activeModes++
+	}
+
+	if activeModes == 0 {
+		return Request{}, fmt.Errorf("provide a command to run, or use --clear / --clear-all")
+	}
+	if activeModes > 1 {
+		return Request{}, fmt.Errorf("use only one mode at a time: command, --clear, or --clear-all")
+	}
+
+	return request, nil
+}
+
+func validateColor(color string) error {
+	switch color {
+	case "green", "yellow", "red", "blue", "magenta", "cyan", "white":
+		return nil
+	default:
+		return fmt.Errorf("invalid --color %q", color)
+	}
+}
