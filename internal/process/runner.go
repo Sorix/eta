@@ -140,6 +140,9 @@ func (r Runner) drain(reader io.Reader, stream Stream, start time.Time, handler 
 			return result
 		}
 		if err != nil {
+			if errors.Is(err, os.ErrClosed) {
+				return result
+			}
 			result.err = errors.Join(result.err, fmt.Errorf("drain output: %w", err))
 			return result
 		}

@@ -3,8 +3,10 @@ package process
 import (
 	"bytes"
 	"context"
+	"os"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/Sorix/eta/internal/hashline"
 )
@@ -129,6 +131,47 @@ done
 	if streamCounts[Stderr] != lineCount {
 		t.Fatalf("stderr line count = %d, want %d", streamCounts[Stderr], lineCount)
 	}
+}
+
+func TestRunnerDrainIgnoresClosedReader(t *testing.T) {
+	runner := Runner{Writer: Writer{}}
+
+	result := runner.drain(
+		&closedReader{
+			chunks: [][]byte{
+				[]byte("out\npartial"),
+			},
+		},
+		Stdout,
+		time.Now(),
+		nil,
+		&lineRecordCollector{},
+	)
+
+	if result.err != nil {
+		t.Fatalf("drain error = %v, want nil", result.err)
+	}
+	if len(result.buffer.flushFinalLine(0)) != 1 {
+		t.Fatalf("final partial line was not retained")
+	}
+}
+
+type closedReader struct {
+	chunks [][]byte
+	index  int
+}
+
+func (r *closedReader) Read(p []byte) (int, error) {
+	if r.index >= len(r.chunks) {
+		return 0, os.ErrClosed
+	}
+
+	n := copy(p, r.chunks[r.index])
+	r.index++
+	if r.index >= len(r.chunks) {
+		return n, os.ErrClosed
+	}
+	return n, nil
 }
 
 func containsHash(output Output, line string) bool {
