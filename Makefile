@@ -44,7 +44,13 @@ ci: check
 	./scripts/ci/test-stdio-clean.sh "$(GO_ETA)"
 	./scripts/ci/test-large-output.sh "$(GO_ETA)"
 
-install: build
+install:
+	@if [ "$$(id -u)" -eq 0 ] && [ -n "$$SUDO_USER" ]; then \
+		echo "Building eta as $$SUDO_USER"; \
+		sudo -u "$$SUDO_USER" -- $(MAKE) build; \
+	else \
+		$(MAKE) build; \
+	fi
 	install -d "$(PREFIX)/bin"
 	install "$(GO_ETA)" "$(PREFIX)/bin/eta"
 
