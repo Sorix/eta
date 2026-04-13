@@ -45,8 +45,24 @@ jobs:
       - name: Perform Go tests
         run: go test ./...
 
+      - name: Check Go formatting
+        run: |
+          test -z "$(gofmt -l .)"
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Run race-sensitive suites
+        run: go test -race ./internal/process ./internal/render ./internal/coordinator ./internal/eta
+
+      - name: Check dependency freshness
+        run: go list -m -u -json all
+
+      - name: Run vulnerability scan
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+
   unit:
-    name: Unit Tests (${{ matrix.os }})
+    name: Swift Baseline (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 5
     strategy:
@@ -89,7 +105,7 @@ jobs:
           NSUnbufferedIO=YES swift test --parallel 2>&1 | xcbeautify --renderer github-actions
 
   integration:
-    name: Integration Tests (${{ matrix.os }})
+    name: Go Integration Tests (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 5
     strategy:
@@ -103,39 +119,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Setup Swift
-        if: runner.os == 'Linux'
-        uses: swift-actions/setup-swift@7591e4f04c00624cb043783da51a7fd6ee0a6bf6 # v2
+      - name: Setup Go
+        uses: actions/setup-go@v6
         with:
-          swift-version: ${{ env.SWIFT_VERSION }}
-
-      - name: Cache xcbeautify
-        if: runner.os == 'Linux'
-        id: cache-xcbeautify
-        uses: actions/cache@v4
-        with:
-          path: /usr/local/bin/xcbeautify
-          key: xcbeautify-${{ env.XCBEAUTIFY_VERSION }}-linux-static
-
-      - name: Install xcbeautify
-        if: runner.os == 'Linux' && steps.cache-xcbeautify.outputs.cache-hit != 'true'
-        run: |
-          archive="$(mktemp)"
-          curl -fsSL -o "$archive" "https://github.com/cpisciotta/xcbeautify/releases/download/$XCBEAUTIFY_VERSION/xcbeautify-${XCBEAUTIFY_VERSION}-x86_64-linux-static.tar.xz"
-          echo "$XCBEAUTIFY_SHA256  $archive" | sha256sum -c -
-          tar -xJf "$archive" -C /usr/local/bin
-          rm "$archive"
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
 
       - name: Build release
-        run: |
-          set -o pipefail
-          NSUnbufferedIO=YES swift build -c release 2>&1 | xcbeautify --renderer github-actions
+        run: make build
 
       - name: Run simulate.sh real test
         id: simulate
         continue-on-error: true
         run: |
-          scripts/ci/test-simulate.sh .build/release/eta
+          scripts/ci/test-simulate.sh .build/go/eta
 
       - name: Upload simulate diagnostics
         if: ${{ steps.simulate.outcome == 'failure' }}
@@ -150,7 +147,7 @@ jobs:
         id: stdio
         continue-on-error: true
         run: |
-          scripts/ci/test-stdio-clean.sh .build/release/eta
+          scripts/ci/test-stdio-clean.sh .build/go/eta
 
       - name: Upload stdio diagnostics
         if: ${{ steps.stdio.outcome == 'failure' }}
@@ -165,7 +162,7 @@ jobs:
         id: performance
         continue-on-error: true
         run: |
-          scripts/ci/test-large-output.sh .build/release/eta
+          scripts/ci/test-large-output.sh .build/go/eta
 
       - name: Upload performance diagnostics
         if: ${{ steps.performance.outcome == 'failure' }}

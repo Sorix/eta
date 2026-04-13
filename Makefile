@@ -11,26 +11,35 @@ endif
 PREFIX ?= $(DEFAULT_PREFIX)
 GO ?= go
 GO_BUILD_DIR := .build/go
+GO_CACHE_DIR := $(CURDIR)/$(GO_BUILD_DIR)/cache
 GO_ETA := $(GO_BUILD_DIR)/eta
 
-build:
-	swift build -c release
+build: go-build
 
 go-build:
 	install -d "$(GO_BUILD_DIR)"
-	$(GO) build -o "$(GO_ETA)" ./cmd/eta
+	GOCACHE="$(GO_CACHE_DIR)" $(GO) build -o "$(GO_ETA)" ./cmd/eta
 
 go-test:
-	$(GO) test ./...
+	GOCACHE="$(GO_CACHE_DIR)" $(GO) test ./...
+
+swift-build:
+	swift build -c release
+
+swift-test:
+	swift test --parallel
 
 install: build
 	install -d "$(PREFIX)/bin"
-	install .build/release/eta "$(PREFIX)/bin/eta"
+	install "$(GO_ETA)" "$(PREFIX)/bin/eta"
 
 uninstall:
 	rm -f "$(PREFIX)/bin/eta"
 
 clean:
+	rm -rf "$(GO_BUILD_DIR)"
+
+swift-clean:
 	swift package clean
 
-.PHONY: build go-build go-test install uninstall clean
+.PHONY: build go-build go-test swift-build swift-test install uninstall clean swift-clean

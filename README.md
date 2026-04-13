@@ -56,7 +56,12 @@ The progress bar has two layers: **solid fill** for lines already matched agains
 **Self-maintaining history** — stale history files are automatically pruned after 90 days. Each run is downsampled to 5,000 lines max. Old runs are rotated out (default: keep last 10).
 
 ## Install
-Software is in alpha-test, releases will be published later.
+Software is in alpha-test, releases will be published later. Installing from source builds the Go CLI.
+
+### Requirements
+
+- Go 1.26+
+- macOS or Linux
 
 ### User install
 
@@ -71,6 +76,16 @@ make install
 ```sh
 make install # sudo required for macOS
 make uninstall # to uninstall
+```
+
+### Development
+
+```sh
+make build      # build .build/go/eta
+make go-test    # run Go unit tests
+
+# Swift remains as a temporary baseline until the cutover cleanup is complete.
+make swift-test
 ```
 
 ## Usage
