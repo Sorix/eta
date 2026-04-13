@@ -26,7 +26,7 @@ This approach means `eta` is designed for **commands you run repeatedly** — an
 The progress bar has two layers: **solid fill** for lines already matched against history, and **shaded fill** for timer-based prediction ahead of the last confirmed point. You always know what's verified versus estimated.
 
 ```
-[██████████████████████▒▒▒▒▒▒▒▒▒▒           ]  64%  ETA 18s
+[██████████████████████▒▒▒▒▒▒▒▒▒▒                        ]  64%  ETA 18s
  ▲ confirmed from output ▲ predicted         ▲ remaining
 ```
 
@@ -63,19 +63,12 @@ Software is in alpha-test, releases will be published later. Installing from sou
 - Go 1.26+
 - macOS or Linux
 
-### User install
-
-```sh
-git clone https://github.com/Sorix/eta
-cd eta
-make install
-```
-
 ### Installation
 
 ```sh
-make install # sudo required for macOS
-make uninstall # to uninstall
+git clone https://github.com/Sorix/eta
+make install    # sudo required for macOS
+make uninstall  # to uninstall
 ```
 
 ### Development
