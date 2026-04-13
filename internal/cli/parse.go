@@ -76,6 +76,12 @@ func Parse(args []string) (Request, error) {
 		request.Command = positionals[0]
 		request.CommandSet = true
 	}
+	if request.CommandSet && strings.TrimSpace(request.Command) == "" {
+		return Request{}, fmt.Errorf("command must not be empty")
+	}
+	if request.ClearCommandSet && strings.TrimSpace(request.ClearCommand) == "" {
+		return Request{}, fmt.Errorf("--clear must not be empty")
+	}
 
 	activeModes := 0
 	if request.CommandSet {
@@ -96,6 +102,23 @@ func Parse(args []string) (Request, error) {
 	}
 	if activeModes > 1 {
 		return Request{}, fmt.Errorf("use only one mode at a time: command, --clear, or --clear-all")
+	}
+	if request.Mode != ModeRun {
+		if request.NameSet {
+			return Request{}, fmt.Errorf("--name can only be used when running a command")
+		}
+		if flags.Changed("quiet") {
+			return Request{}, fmt.Errorf("--quiet can only be used when running a command")
+		}
+		if flags.Changed("solid") {
+			return Request{}, fmt.Errorf("--solid can only be used when running a command")
+		}
+		if flags.Changed("runs") {
+			return Request{}, fmt.Errorf("--runs can only be used when running a command")
+		}
+		if flags.Changed("color") {
+			return Request{}, fmt.Errorf("--color can only be used when running a command")
+		}
 	}
 
 	return request, nil

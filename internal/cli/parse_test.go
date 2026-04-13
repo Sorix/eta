@@ -13,11 +13,21 @@ func TestParseRejectsInvalidModesAndRunCounts(t *testing.T) {
 		{name: "clear plus clear all", args: []string{"--clear", "one", "--clear-all"}},
 		{name: "zero runs", args: []string{"--runs", "0", "echo hi"}},
 		{name: "negative runs", args: []string{"--runs", "-1", "echo hi"}},
+		{name: "text runs", args: []string{"--runs", "many", "echo hi"}},
 		{name: "too many command arguments", args: []string{"echo", "hi"}},
 		{name: "invalid color", args: []string{"--color", "orange", "echo hi"}},
 		{name: "uppercase color", args: []string{"--color", "Cyan", "echo hi"}},
 		{name: "empty explicit name", args: []string{"--name", "", "echo hi"}},
 		{name: "whitespace explicit name", args: []string{"--name", " \t ", "echo hi"}},
+		{name: "empty command", args: []string{""}},
+		{name: "whitespace command", args: []string{" \t "}},
+		{name: "empty clear command", args: []string{"--clear", ""}},
+		{name: "whitespace clear command", args: []string{"--clear", " \t "}},
+		{name: "name in clear mode", args: []string{"--name", "alias", "--clear", "echo hi"}},
+		{name: "quiet in clear all mode", args: []string{"--quiet", "--clear-all"}},
+		{name: "solid in clear mode", args: []string{"--solid", "--clear", "echo hi"}},
+		{name: "runs in clear mode", args: []string{"--runs", "5", "--clear", "echo hi"}},
+		{name: "color in clear all mode", args: []string{"--color", "cyan", "--clear-all"}},
 	}
 
 	for _, tt := range tests {
@@ -107,23 +117,4 @@ func TestParseClearModes(t *testing.T) {
 	if clearAllRequest.Mode != ModeClearAll {
 		t.Fatalf("Mode = %v; want ModeClearAll", clearAllRequest.Mode)
 	}
-}
-
-func TestParseTreatsPresentEmptyStringsAsPresent(t *testing.T) {
-	emptyCommand, err := Parse([]string{""})
-	if err != nil {
-		t.Fatalf("Parse(empty command) error = %v", err)
-	}
-	if emptyCommand.Mode != ModeRun || !emptyCommand.CommandSet || emptyCommand.Command != "" {
-		t.Fatalf("empty command request = %+v; want run mode with empty command present", emptyCommand)
-	}
-
-	emptyClear, err := Parse([]string{"--clear", ""})
-	if err != nil {
-		t.Fatalf("Parse(empty clear) error = %v", err)
-	}
-	if emptyClear.Mode != ModeClear || !emptyClear.ClearCommandSet || emptyClear.ClearCommand != "" {
-		t.Fatalf("empty clear request = %+v; want clear mode with empty command present", emptyClear)
-	}
-
 }
